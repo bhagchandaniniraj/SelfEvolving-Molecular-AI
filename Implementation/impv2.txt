@@ -17109,40 +17109,3219 @@ F_j
 The adaptation target must be designed carefully so that computational model predictions are not incorrectly treated as experimentally verified biological labels.
 ---
 
-# Phase 17 — Surrogate Bioactivity/Relevance Predictor
+==================
+# PHASE 17 — FEEDBACK CANDIDATE DEFINITION AND EWC-REGULARIZED CLOSED-LOOP ADAPTATION
 
-A predictive head should operate over molecular representations.
 
-Conceptually:
+## OBJECTIVE
 
-```text
-Molecule
-   ↓
-Encoder
-   ↓
-Latent z
-   ↓
-Surrogate predictor
-   ↓
-Predicted biological relevance
-```
+Phase 17 performs the first controlled closed-loop model adaptation of the system.
 
-Its supervision should come from the DrugBank XML-derived biological relationships.
-
-This is another place where moving to XML helps: the molecular record and its biological associations come from the same hierarchical DrugBank source.
-
-The predictor should be described according to what the available labels actually support.
-
-If the XML gives association labels but not quantitative experimental activity values, call the prediction:
+The preceding pipeline has already established:
 
 ```text
-target association
-biological relevance
-bioactivity prioritization
+Phase 12
+Frozen baseline target-association predictor θP*
+
+Phase 13
+Diagonal empirical Fisher references F_E and F_P
+
+Phase 14
+Generated Cycle-1 candidate molecules
+
+Phase 15
+Chemically eligible candidate pool
+
+Phase 16
+Multi-objective evaluation,
+predictive uncertainty estimation,
+Pareto analysis,
+candidate ranking,
+and diversity-aware candidate prioritization
 ```
 
-rather than claiming measured binding affinity.
+Phase 16 produced the selected Cycle-1 feedback candidate set:
 
+\[
+S_1
+\]
+
+For the finalized Cycle-1 workflow:
+
+\[
+|S_1|=50
+\]
+
+Phase 17 uses this prioritized candidate set to define a computational preference-based learning signal.
+
+The molecular encoder and target-association predictor are then adapted under Elastic Weight Consolidation:
+
+\[
+EWC
+\]
+
+to reduce uncontrolled drift from the original DrugBank-derived baseline knowledge.
+
+
+==================================================
+## IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 17 performs:
+
+```text
+loading the selected S1 candidate set
+
+self-contained reconstruction of candidate molecular graphs
+
+precomputation of all S1 graph representations
+
+preservation of Phase-16 QED and SA information
+
+preservation of Phase-16 fixed top-5 target identities
+
+construction of computational preference pairs
+
+controlled encoder adaptation
+
+controlled predictor adaptation
+
+EWC regularization
+
+parameter-drift measurement
+
+Fisher-weighted drift measurement
+
+baseline-reference latent-drift analysis
+
+baseline-reference target-score-drift analysis
+
+feedback ranking evaluation
+
+construction of updated Cycle-1 state K1
+```
+
+Phase 17 does NOT perform:
+
+```text
+experimental biological testing
+
+binding-affinity measurement
+
+IC50 measurement
+
+Ki measurement
+
+Kd measurement
+
+EC50 measurement
+
+clinical validation
+
+experimental activity-label generation
+
+new DrugBank label generation
+
+decoder retraining
+
+Fisher recalculation
+
+test-set-guided hyperparameter tuning
+```
+
+Therefore:
+
+\[
+\text{Phase-17 adaptation}
+\neq
+\text{learning from new experimental biological data}
+\]
+
+
+==================================================
+## 1. INPUT FEEDBACK CANDIDATE SET
+==================================================
+
+The principal Phase-17 input is:
+
+\[
+S_1
+\]
+
+from:
+
+```text
+phase16_selected_candidates.csv
+```
+
+The finalized Cycle-1 Phase-16 implementation produced:
+
+\[
+|S_1|=50
+\]
+
+These candidates were selected using:
+
+```text
+chemical quality
+
+synthetic accessibility
+
+DrugBank-grounded target-association relevance
+
+predictive uncertainty
+
+Pareto information
+
+diversity-aware filtering
+```
+
+They therefore represent:
+
+**computationally prioritized candidates**
+
+rather than:
+
+**experimentally validated active compounds**.
+
+
+==================================================
+## 2. IMPORTANT SCIENTIFIC LIMITATION
+==================================================
+
+Phase 16 generated model-derived quantities such as:
+
+\[
+B_i
+\]
+
+for biological relevance,
+
+\[
+U_i
+\]
+
+for predictive uncertainty,
+
+\[
+Utility_i
+\]
+
+and:
+
+\[
+Acquisition_i
+\]
+
+for candidate prioritization.
+
+These quantities are predictions or computational design scores.
+
+They are not independent biological observations.
+
+Therefore Phase 17 must not perform:
+
+```text
+model prediction
+        ↓
+treat prediction as experimental truth
+        ↓
+retrain same model on its own output
+```
+
+This could produce:
+
+```text
+confirmation bias
+
+self-reinforcement
+
+overconfidence
+
+score inflation
+
+loss of biological interpretability
+```
+
+
+==================================================
+## 3. FEEDBACK PHILOSOPHY
+==================================================
+
+Phase 17 should therefore use:
+
+**preference-based surrogate-guided adaptation**
+
+rather than:
+
+**pseudo-label supervised retraining**.
+
+The model should learn from relative computational preference:
+
+\[
+i \succ j
+\]
+
+meaning:
+
+```text
+candidate i was computationally preferred over candidate j
+```
+
+It does not mean:
+
+```text
+candidate i is experimentally more biologically active than candidate j
+```
+
+
+==================================================
+## 4. BASELINE KNOWLEDGE STATE
+==================================================
+
+The baseline knowledge state is:
+
+\[
+K_0
+=
+\{
+\Theta^*,
+F_E,
+F_P,
+Z_0
+\}
+\]
+
+where:
+
+\[
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
+\]
+
+with:
+
+```text
+θE* = trained geometry-aware baseline molecular encoder
+
+θD* = trained latent-conditioned molecular decoder
+
+θP* = trained DrugBank target-association predictor
+
+F_E = Phase-13 encoder diagonal empirical Fisher reference
+
+F_P = Phase-13 predictor diagonal empirical Fisher reference
+
+Z0 = baseline latent reference
+```
+
+
+==================================================
+## 5. TRAINABLE AND FROZEN PARAMETERS
+==================================================
+
+Phase 17 uses the following parameter policy:
+
+```text
+Encoder θE      : trainable
+
+Predictor θP    : trainable
+
+Decoder θD*     : frozen
+```
+
+Therefore:
+
+\[
+\Theta_{adapt}
+=
+\{
+\theta_E,
+\theta_P
+\}
+\]
+
+The decoder remains:
+
+\[
+\theta_D
+=
+\theta_D^*
+\]
+
+
+==================================================
+## 6. WHY THE DECODER REMAINS FROZEN
+==================================================
+
+Phase 13 calculated Fisher information only for:
+
+\[
+\theta_E
+\]
+
+and:
+
+\[
+\theta_P
+\]
+
+No decoder Fisher reference:
+
+\[
+F_D
+\]
+
+was established.
+
+Therefore the decoder is not included in EWC-constrained adaptation.
+
+For Phase 17:
+
+\[
+\Delta\theta_D
+=
+0
+\]
+
+
+==================================================
+## 7. SELF-CONTAINED GRAPH CONSTRUCTION
+==================================================
+
+Phase 17 must not depend on graph-building functions remaining in notebook memory.
+
+The Phase-7 molecular graph methodology should be embedded directly in the Phase-17 implementation.
+
+Each candidate graph must preserve:
+
+```text
+21-dimensional node features
+
+14-dimensional edge features
+
+explicit hydrogen representation
+
+bidirectional bonds
+
+ETKDGv3 3D conformer generation
+
+ETKDGv3 random-coordinate fallback
+
+MMFF94 optimization
+
+UFF fallback
+
+centered Cartesian coordinates
+```
+
+
+==================================================
+## 8. GRAPH-SCHEMA CONSISTENCY
+==================================================
+
+The graph representation must satisfy:
+
+\[
+Schema_{Phase17}
+=
+Schema_{Phase7}
+\]
+
+Therefore Phase 17 must reuse:
+
+```text
+same node-feature names
+
+same node-feature order
+
+same edge-feature names
+
+same edge-feature order
+
+same coordinate policy
+
+same hydrogen policy
+```
+
+
+==================================================
+## 9. PHASE-9 NORMALIZATION
+==================================================
+
+The exact Phase-9 train-only node-feature normalization must be reused.
+
+The standardized atom features are:
+
+```text
+atomic_number
+
+degree
+
+formal_charge
+
+hydrogen_neighbor_count
+
+atomic_mass
+
+implicit_valence
+
+explicit_valence
+```
+
+The saved Phase-9 statistics must be loaded from:
+
+```text
+phase9_feature_normalization.json
+```
+
+No normalization statistics are recalculated from Phase-17 candidates.
+
+
+==================================================
+## 10. PRECOMPUTE ALL S1 GRAPHS
+==================================================
+
+Because:
+
+\[
+|S_1|=50
+\]
+
+all selected candidate graphs should be generated once before adaptation.
+
+Recommended workflow:
+
+```text
+S1 candidates
+        ↓
+Phase-7-compatible graph construction
+        ↓
+validate graph schema
+        ↓
+store in memory
+        ↓
+reuse during every adaptation epoch
+```
+
+This prevents repeated:
+
+```text
+RDKit parsing
+
+hydrogen addition
+
+conformer generation
+
+force-field optimization
+
+graph featurization
+```
+
+during training.
+
+
+==================================================
+## 11. WHY GRAPH PRECOMPUTATION IS IMPORTANT
+==================================================
+
+Precomputation improves:
+
+```text
+reproducibility
+
+computational efficiency
+
+training stability
+
+auditability
+```
+
+Every adaptation epoch therefore uses exactly the same molecular graph representation.
+
+
+==================================================
+## 12. FIXED CANDIDATE PROPERTIES
+==================================================
+
+The following Phase-16 quantities remain fixed during Phase 17:
+
+```text
+QED
+
+SA score
+
+SA utility
+
+canonical molecular identity
+
+generation provenance
+
+Phase-16 utility rank
+
+Phase-16 acquisition rank
+
+Phase-16 top-5 target identities
+```
+
+
+==================================================
+## 13. PHASE-16 QED
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+retain:
+
+\[
+QED_i
+\]
+
+from Phase 16.
+
+QED is not recalculated during optimization.
+
+
+==================================================
+## 14. PHASE-16 SA UTILITY
+==================================================
+
+Retain:
+
+\[
+SAUtility_i
+=
+clip
+\left(
+1-\frac{SA_i-1}{9},
+0,
+1
+\right)
+\]
+
+from Phase 16.
+
+This quantity remains constant during adaptation.
+
+
+==================================================
+## 15. FIXED TOP-5 TARGET IDENTITIES
+==================================================
+
+For every:
+
+\[
+i\in S_1
+\]
+
+preserve the five target classes selected during Phase 16.
+
+Define:
+
+\[
+T_i^{(0)}
+=
+\{
+t_{i1},
+t_{i2},
+t_{i3},
+t_{i4},
+t_{i5}
+\}
+\]
+
+These target identities remain fixed throughout Phase 17.
+
+
+==================================================
+## 16. WHY TOP-5 TARGET IDENTITIES ARE FROZEN
+==================================================
+
+The model parameters change during adaptation.
+
+If the top-five target set were recomputed at every gradient step, the optimization objective itself could change continuously.
+
+This would introduce:
+
+```text
+target switching
+
+non-stationary optimization
+
+poor auditability
+
+unstable gradients
+```
+
+Therefore Phase-16 target identities are used as fixed target anchors.
+
+
+==================================================
+## 17. ADAPTED BIOLOGICAL RELEVANCE
+==================================================
+
+During Phase 17, the candidate graph is encoded through the adaptable encoder:
+
+\[
+\theta_E
+\]
+
+to produce deterministic:
+
+\[
+\mu_i
+\]
+
+The frozen Phase-12 latent normalization is then applied.
+
+The normalized latent representation is passed through the adaptable predictor:
+
+\[
+\theta_P
+\]
+
+For candidate:
+
+\[
+i
+\]
+
+define:
+
+\[
+B_i^{adapt}
+=
+\frac{1}{5}
+\sum_{k\in T_i^{(0)}}
+p_{ik}^{adapt}
+\]
+
+where:
+
+\[
+p_{ik}^{adapt}
+\]
+
+is the adapted continuous target-association relevance score.
+
+
+==================================================
+## 18. IMPORTANT PREDICTOR INTERPRETATION
+==================================================
+
+The predictor output continues to represent:
+
+**DrugBank-grounded target-association relevance**
+
+or:
+
+**biological relevance ranking scores**
+
+It must not be interpreted as:
+
+```text
+binding affinity
+
+IC50
+
+Ki
+
+Kd
+
+EC50
+
+experimental activity
+
+clinical probability
+```
+
+
+==================================================
+## 19. PRIMARY DIFFERENTIABLE ADAPTATION UTILITY
+==================================================
+
+The primary Phase-17 differentiable utility should preserve the structure of the Phase-16 exploitation utility.
+
+Define:
+
+\[
+U_i^{adapt}
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i^{adapt}
+\]
+
+where:
+
+```text
+QED_i          = fixed Phase-16 value
+
+SAUtility_i    = fixed Phase-16 value
+
+B_i^adapt      = differentiable adapted biological relevance
+```
+
+
+==================================================
+## 20. WHY ADAPT THE COMPOSITE UTILITY RATHER THAN B ALONE
+==================================================
+
+Phase-16 candidate preference was multi-objective.
+
+If Phase 17 created preference pairs based on multi-objective ranking but optimized only:
+
+\[
+B_i
+\]
+
+then the biological predictor could be forced to absorb differences caused by:
+
+```text
+QED
+
+synthetic accessibility
+```
+
+That would blur the meaning of the biological predictor.
+
+Using:
+
+\[
+U_i^{adapt}
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i^{adapt}
+\]
+
+keeps the chemical contributions explicit.
+
+
+==================================================
+## 21. PRIMARY PREFERENCE ORDERING
+==================================================
+
+The primary Phase-17 training preference should be derived from:
+
+\[
+UtilityRank
+\]
+
+from Phase 16.
+
+Therefore:
+
+\[
+i\succ j
+\]
+
+when:
+
+\[
+UtilityRank_i
+<
+UtilityRank_j
+\]
+
+subject to the predefined rank-separation rule.
+
+
+==================================================
+## 22. WHY UTILITY RANK IS PREFERRED OVER ACQUISITION RANK
+==================================================
+
+Phase-16 acquisition includes uncertainty:
+
+\[
+Acquisition_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50BioUCB_i
+\]
+
+where:
+
+\[
+BioUCB_i
+=
+B_i
++
+\kappa U_i
+\]
+
+Uncertainty is useful for candidate exploration and selection.
+
+However, directly training the biological model to reproduce uncertainty-driven acquisition ordering could cause uncertainty itself to behave like a biological desirability label.
+
+Therefore:
+
+```text
+Utility rank
+    =
+primary adaptation preference
+
+Acquisition rank
+    =
+selection / exploration context
+```
+
+Acquisition information remains preserved for later analysis.
+
+
+==================================================
+## 23. PREFERENCE PAIR CONSTRUCTION
+==================================================
+
+Construct deterministic candidate pairs:
+
+\[
+(i,j)
+\]
+
+from:
+
+\[
+S_1
+\]
+
+such that:
+
+\[
+UtilityRank_i
+<
+UtilityRank_j
+\]
+
+The higher-ranked candidate becomes the preferred candidate.
+
+
+==================================================
+## 24. RANK-SEPARATION REQUIREMENT
+==================================================
+
+Pairs should have a minimum rank separation.
+
+Recommended baseline:
+
+\[
+\Delta Rank_{min}=5
+\]
+
+Thus candidate pairs should satisfy:
+
+\[
+|
+UtilityRank_i
+-
+UtilityRank_j
+|
+\ge5
+\]
+
+This avoids emphasizing nearly tied candidates.
+
+
+==================================================
+## 25. WHY RANK SEPARATION IS USED
+==================================================
+
+Two adjacent candidates may have almost identical utility values.
+
+Treating their ordering as a strong preference could introduce unnecessary noise.
+
+Rank separation reduces:
+
+```text
+near-tie noise
+
+unstable gradients
+
+overinterpretation of tiny utility differences
+```
+
+
+==================================================
+## 26. PAIR WEIGHTING
+==================================================
+
+Each pair may receive a deterministic preference weight based on the Phase-16 utility difference.
+
+Define:
+
+\[
+w_{ij}
+=
+|U_i^{(0)}-U_j^{(0)}|
+\]
+
+where:
+
+\[
+U_i^{(0)}
+\]
+
+is the Phase-16 baseline exploitation utility.
+
+This gives greater importance to strongly separated candidates.
+
+
+==================================================
+## 27. NORMALIZED PAIR WEIGHTS
+==================================================
+
+For numerical stability, pair weights may be normalized within the training pair set:
+
+\[
+\tilde w_{ij}
+=
+\frac{w_{ij}}
+{\overline{w}}
+\]
+
+where:
+
+\[
+\overline{w}
+\]
+
+is the mean pair weight.
+
+This preserves relative pair importance without changing the overall loss scale excessively.
+
+
+==================================================
+## 28. MARGIN-BASED PAIRWISE FEEDBACK LOSS
+==================================================
+
+Use a small positive ranking margin:
+
+\[
+m>0
+\]
+
+For preferred candidate:
+
+\[
+i
+\]
+
+and comparison candidate:
+
+\[
+j
+\]
+
+define:
+
+\[
+\mathcal{L}_{ij}
+=
+softplus
+\left(
+m-
+\left[
+U_i^{adapt}
+-
+U_j^{adapt}
+\right]
+\right)
+\]
+
+The weighted feedback loss is:
+
+\[
+\mathcal{L}_{feedback}
+=
+\frac{
+\sum_{(i,j)}
+\tilde w_{ij}
+\mathcal{L}_{ij}
+}{
+\sum_{(i,j)}
+\tilde w_{ij}
+}
+\]
+
+
+==================================================
+## 29. WHY A MARGIN IS USED
+==================================================
+
+A simple logistic ranking loss continuously rewards larger score separation.
+
+That could lead to unnecessary score inflation even after the desired ordering is already achieved.
+
+The margin-based formulation encourages:
+
+```text
+correct preference ordering
+
+plus
+
+a modest predefined separation
+```
+
+rather than unlimited score divergence.
+
+
+==================================================
+## 30. MARGIN INTERPRETATION
+==================================================
+
+The margin:
+
+\[
+m
+\]
+
+is a computational design parameter.
+
+It is not:
+
+```text
+a biological effect size
+
+a binding-affinity difference
+
+an experimental activity threshold
+```
+
+
+==================================================
+## 31. BASELINE PARAMETER ANCHORS
+==================================================
+
+Before adaptation, preserve exact copies of:
+
+\[
+\theta_E^*
+\]
+
+and:
+
+\[
+\theta_P^*
+\]
+
+For every parameter:
+
+\[
+\theta_j^*
+\]
+
+is the EWC anchor.
+
+
+==================================================
+## 32. PHASE-13 FISHER REFERENCES
+==================================================
+
+Load:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+from Phase 13.
+
+These are diagonal empirical Fisher-style parameter-importance estimates derived from the baseline DrugBank target-association task.
+
+
+==================================================
+## 33. ENCODER EWC PENALTY
+==================================================
+
+Define:
+
+\[
+\mathcal{L}_{EWC,E}
+=
+\sum_j
+F_{E,j}
+\left(
+\theta_{E,j}
+-
+\theta_{E,j}^{*}
+\right)^2
+\]
+
+
+==================================================
+## 34. PREDICTOR EWC PENALTY
+==================================================
+
+Define:
+
+\[
+\mathcal{L}_{EWC,P}
+=
+\sum_j
+F_{P,j}
+\left(
+\theta_{P,j}
+-
+\theta_{P,j}^{*}
+\right)^2
+\]
+
+
+==================================================
+## 35. RAW EWC PENALTY
+==================================================
+
+The primary EWC penalty is:
+
+\[
+\mathcal{L}_{EWC}
+=
+\mathcal{L}_{EWC,E}
++
+\mathcal{L}_{EWC,P}
+\]
+
+The raw Fisher-weighted sums remain the primary regularization definition.
+
+
+==================================================
+## 36. NORMALIZED EWC DIAGNOSTICS
+==================================================
+
+Because the encoder and predictor contain different numbers of parameters, Phase 17 should also calculate diagnostic normalized quantities:
+
+\[
+\bar{\mathcal{L}}_{EWC,E}
+=
+\frac{
+\mathcal{L}_{EWC,E}
+}{
+N_E
+}
+\]
+
+and:
+
+\[
+\bar{\mathcal{L}}_{EWC,P}
+=
+\frac{
+\mathcal{L}_{EWC,P}
+}{
+N_P
+}
+\]
+
+where:
+
+\[
+N_E=70,274
+\]
+
+and:
+
+\[
+N_P=8,674
+\]
+
+These normalized values are diagnostic quantities.
+
+They do not replace the primary raw EWC objective unless explicitly specified in a separate ablation.
+
+
+==================================================
+## 37. WHY RAW AND NORMALIZED EWC ARE BOTH REPORTED
+==================================================
+
+Raw EWC preserves the conventional Fisher-weighted penalty.
+
+Normalized EWC helps interpret:
+
+```text
+encoder contribution
+
+predictor contribution
+
+per-parameter regularization scale
+```
+
+Reporting both improves auditability.
+
+
+==================================================
+## 38. TOTAL ADAPTATION LOSS
+==================================================
+
+Define:
+
+\[
+\mathcal{L}_{total}
+=
+\mathcal{L}_{feedback}
++
+\lambda_{EWC}
+\mathcal{L}_{EWC}
+\]
+
+where:
+
+\[
+\mathcal{L}_{EWC}
+=
+\mathcal{L}_{EWC,E}
++
+\mathcal{L}_{EWC,P}
+\]
+
+
+==================================================
+## 39. EWC COEFFICIENT
+==================================================
+
+The coefficient:
+
+\[
+\lambda_{EWC}
+\]
+
+controls the balance between:
+
+```text
+feedback adaptation
+
+and
+
+baseline parameter preservation
+```
+
+It must be explicitly recorded.
+
+
+==================================================
+## 40. DO NOT ASSUME AN ARBITRARY EWC LAMBDA
+==================================================
+
+A value such as:
+
+```text
+100
+1000
+10000
+```
+
+should not be adopted merely because it is common in other EWC implementations.
+
+The useful magnitude depends on the actual scale of:
+
+\[
+\mathcal{L}_{feedback}
+\]
+
+and:
+
+\[
+\mathcal{L}_{EWC}
+\]
+
+in this system.
+
+
+==================================================
+## 41. RECOMMENDED EWC-LAMBDA SELECTION POLICY
+==================================================
+
+Use a small predefined candidate set such as:
+
+\[
+\lambda_{EWC}
+\in
+\{
+10,
+100,
+1000
+\}
+\]
+
+or another explicitly declared grid.
+
+Select among them using:
+
+```text
+feedback-validation ranking performance
+
+baseline-reference functional retention
+
+parameter drift
+
+Fisher-weighted drift
+```
+
+Do not use the Phase-8 test set.
+
+
+==================================================
+## 42. MODEL-SELECTION PRINCIPLE
+==================================================
+
+The selected:
+
+\[
+\lambda_{EWC}
+\]
+
+should provide a reasonable compromise:
+
+```text
+feedback ranking improves
+
+while
+
+baseline reference behavior remains sufficiently stable
+```
+
+The selection criterion should be documented before inspecting final test behavior.
+
+
+==================================================
+## 43. FEEDBACK TRAIN / VALIDATION SPLIT
+==================================================
+
+Because:
+
+\[
+S_1=50
+\]
+
+a deterministic molecule-level split should be created before pair generation.
+
+Recommended baseline:
+
+```text
+80% feedback-train candidates
+
+20% feedback-validation candidates
+```
+
+
+==================================================
+## 44. MOLECULE-LEVEL SPLIT BEFORE PAIR CONSTRUCTION
+==================================================
+
+Candidates should first be separated into:
+
+\[
+S_1^{train}
+\]
+
+and:
+
+\[
+S_1^{val}
+\]
+
+Then preference pairs are created independently inside each subset.
+
+This prevents the same candidate molecule from appearing in both feedback-training and feedback-validation pairs.
+
+
+==================================================
+## 45. WHY MOLECULE-LEVEL SPLITTING IS PREFERRED
+==================================================
+
+Pair-level random splitting could produce:
+
+```text
+candidate A in training pair
+
+and
+
+candidate A in validation pair
+```
+
+This would create feedback leakage.
+
+Therefore:
+
+```text
+candidate split first
+
+pair construction second
+```
+
+
+==================================================
+## 46. TEST-SET PROTECTION
+==================================================
+
+The original Phase-8 test set must not be used to select:
+
+```text
+λ_EWC
+
+ranking margin
+
+learning rate
+
+number of epochs
+
+rank-separation threshold
+
+pair weighting
+
+feedback candidate split
+
+early stopping
+```
+
+
+==================================================
+## 47. OPTIMIZER
+==================================================
+
+Phase 17 is the first phase after baseline consolidation where parameter optimization intentionally resumes.
+
+Recommended optimizer:
+
+\[
+AdamW
+\]
+
+
+==================================================
+## 48. LEARNING RATE
+==================================================
+
+Use a conservative adaptation learning rate.
+
+Recommended baseline:
+
+\[
+LR=10^{-4}
+\]
+
+This is lower than the original baseline predictor-training learning rate.
+
+
+==================================================
+## 49. ADAPTATION EPOCHS
+==================================================
+
+Adaptation should remain limited.
+
+Recommended baseline:
+
+\[
+Epoch_{max}=20
+\]
+
+The purpose is controlled refinement rather than full retraining.
+
+
+==================================================
+## 50. EARLY STOPPING
+==================================================
+
+Early stopping should use:
+
+\[
+\mathcal{L}_{feedback,val}
+\]
+
+or an explicitly defined validation objective incorporating knowledge retention.
+
+It must not use Phase-8 test performance.
+
+
+==================================================
+## 51. TRAINING PATHWAY
+==================================================
+
+The differentiable adaptation path is:
+
+```text
+precomputed candidate graph
+        ↓
+adaptable encoder θE
+        ↓
+deterministic μ
+        ↓
+frozen Phase-12 latent normalization
+        ↓
+adaptable predictor θP
+        ↓
+continuous 130-target relevance vector
+        ↓
+extract frozen Phase-16 top-5 target classes
+        ↓
+B_i^adapt
+        ↓
+U_i^adapt
+=
+0.30 QED_fixed
++
+0.20 SAUtility_fixed
++
+0.50 B_i^adapt
+        ↓
+pairwise margin-ranking loss
+        +
+EWC
+        ↓
+gradient update
+```
+
+
+==================================================
+## 52. DETERMINISTIC LATENT REPRESENTATION
+==================================================
+
+During Phase 17 use:
+
+\[
+z=\mu
+\]
+
+rather than:
+
+\[
+z
+=
+\mu
++
+\sigma\epsilon
+\]
+
+This prevents variational sampling noise from entering the feedback objective.
+
+
+==================================================
+## 53. PHASE-12 LATENT NORMALIZATION
+==================================================
+
+The exact Phase-12 train-fitted latent normalization remains frozen.
+
+For dimension:
+
+\[
+k
+\]
+
+use:
+
+\[
+z'_{ik}
+=
+\frac{
+z_{ik}
+-
+\mu_{train,k}
+}{
+\sigma_{safe,k}
+}
+\]
+
+No normalization statistics are fitted on:
+
+\[
+S_1
+\]
+
+
+==================================================
+## 54. TARGET VOCABULARY
+==================================================
+
+The exact Phase-12 130-class target vocabulary remains frozen.
+
+Do not:
+
+```text
+reorder target classes
+
+remove classes
+
+add classes
+
+rebuild target support
+
+retrain vocabulary
+```
+
+
+==================================================
+## 55. MC DROPOUT DURING TRAINING
+==================================================
+
+MC dropout is not required inside every adaptation step.
+
+During optimization, standard training-mode dropout may operate normally.
+
+The Phase-16 30-pass MC-dropout protocol should be reused for post-adaptation uncertainty evaluation.
+
+
+==================================================
+## 56. PARAMETER UPDATE POLICY
+==================================================
+
+During each optimization step:
+
+```text
+θE updates
+
+θP updates
+
+θD does not update
+```
+
+
+==================================================
+## 57. UPDATED MODEL PARAMETERS
+==================================================
+
+After adaptation define:
+
+\[
+\theta_E^{(1)}
+\]
+
+and:
+
+\[
+\theta_P^{(1)}
+\]
+
+The updated model state becomes:
+
+\[
+\Theta_1
+=
+\{
+\theta_E^{(1)},
+\theta_D^*,
+\theta_P^{(1)}
+\}
+\]
+
+
+==================================================
+## 58. PARAMETER DRIFT
+==================================================
+
+For every adapted parameter calculate:
+
+\[
+\Delta\theta_j
+=
+\theta_j^{(1)}
+-
+\theta_j^*
+\]
+
+Report:
+
+```text
+mean absolute drift
+
+maximum absolute drift
+
+L1 drift
+
+L2 drift
+```
+
+
+==================================================
+## 59. FISHER-WEIGHTED PARAMETER DRIFT
+==================================================
+
+For the encoder:
+
+\[
+D_{F,E}
+=
+\sum_j
+F_{E,j}
+\left(
+\theta_{E,j}^{(1)}
+-
+\theta_{E,j}^{*}
+\right)^2
+\]
+
+For the predictor:
+
+\[
+D_{F,P}
+=
+\sum_j
+F_{P,j}
+\left(
+\theta_{P,j}^{(1)}
+-
+\theta_{P,j}^{*}
+\right)^2
+\]
+
+
+==================================================
+## 60. NORMALIZED FISHER DRIFT DIAGNOSTICS
+==================================================
+
+Also report:
+
+\[
+\bar D_{F,E}
+=
+\frac{
+D_{F,E}
+}{
+N_E
+}
+\]
+
+and:
+
+\[
+\bar D_{F,P}
+=
+\frac{
+D_{F,P}
+}{
+N_P
+}
+\]
+
+for diagnostic comparison.
+
+
+==================================================
+## 61. KNOWLEDGE-RETENTION REFERENCE
+==================================================
+
+Use the fixed:
+
+\[
+D_{fisher\_reference}
+\]
+
+established in Phase 8 and used in Phase 13.
+
+This consists of:
+
+\[
+128
+\]
+
+training-only baseline reference molecules.
+
+
+==================================================
+## 62. IMPORTANT REFERENCE-SET POLICY
+==================================================
+
+The Fisher reference set is not a validation or test set.
+
+It is used here as a fixed baseline-retention reference.
+
+It must not be used to claim unbiased predictive generalization.
+
+
+==================================================
+## 63. BASELINE LATENT REFERENCE
+==================================================
+
+Before adaptation calculate or load:
+
+\[
+\mu_r^{(0)}
+\]
+
+for each reference molecule:
+
+\[
+r
+\]
+
+After adaptation calculate:
+
+\[
+\mu_r^{(1)}
+\]
+
+
+==================================================
+## 64. LATENT DRIFT
+==================================================
+
+For each baseline reference molecule calculate:
+
+\[
+D_{latent,r}
+=
+\left\|
+\mu_r^{(1)}
+-
+\mu_r^{(0)}
+\right\|_2
+\]
+
+Report:
+
+```text
+mean latent drift
+
+median latent drift
+
+maximum latent drift
+```
+
+
+==================================================
+## 65. BASELINE PREDICTION REFERENCE
+==================================================
+
+For each baseline reference molecule preserve the original predictor vector:
+
+\[
+\mathbf p_r^{(0)}
+\]
+
+After adaptation calculate:
+
+\[
+\mathbf p_r^{(1)}
+\]
+
+
+==================================================
+## 66. TARGET-PREDICTION DRIFT
+==================================================
+
+For reference molecule:
+
+\[
+r
+\]
+
+calculate:
+
+\[
+D_{pred,r}
+=
+\frac{1}{130}
+\sum_{k=1}^{130}
+\left|
+p_{rk}^{(1)}
+-
+p_{rk}^{(0)}
+\right|
+\]
+
+Also record:
+
+\[
+D_{pred,r}^{max}
+=
+\max_k
+\left|
+p_{rk}^{(1)}
+-
+p_{rk}^{(0)}
+\right|
+\]
+
+
+==================================================
+## 67. TOP-TARGET STABILITY
+==================================================
+
+For each baseline reference molecule compare:
+
+```text
+baseline top target
+
+adapted top target
+```
+
+Record whether the highest-ranked target changed.
+
+
+==================================================
+## 68. WHY PARAMETER DRIFT ALONE IS NOT ENOUGH
+==================================================
+
+A small parameter movement can still produce substantial output changes.
+
+Similarly, larger movement in low-Fisher directions may preserve behavior.
+
+Therefore Phase 17 must evaluate:
+
+```text
+raw parameter drift
+
+Fisher-weighted parameter drift
+
+latent drift
+
+target-score drift
+```
+
+
+==================================================
+## 69. FEEDBACK PRE/POST ANALYSIS
+==================================================
+
+For every:
+
+\[
+i\in S_1
+\]
+
+compare:
+
+\[
+B_i^{(0)}
+\]
+
+with:
+
+\[
+B_i^{(1)}
+\]
+
+and:
+
+\[
+U_i^{(0)}
+\]
+
+with:
+
+\[
+U_i^{(1)}
+\]
+
+where the utility definition remains:
+
+\[
+U_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i
+\]
+
+
+==================================================
+## 70. FEEDBACK RANKING COMPARISON
+==================================================
+
+Compare:
+
+```text
+Phase-16 utility ranking
+
+versus
+
+post-adaptation differentiable utility ranking
+```
+
+Recommended metrics:
+
+```text
+Spearman rank correlation
+
+Kendall rank correlation
+
+pairwise ordering accuracy
+```
+
+
+==================================================
+## 71. PAIRWISE ORDERING ACCURACY
+==================================================
+
+For feedback pair:
+
+\[
+i\succ j
+\]
+
+count the pair as correctly ordered if:
+
+\[
+U_i^{(1)}
+>
+U_j^{(1)}
+\]
+
+Then calculate:
+
+\[
+Accuracy_{pair}
+=
+\frac{
+N_{correct}
+}{
+N_{pairs}
+}
+\]
+
+
+==================================================
+## 72. FEEDBACK LOSS BEFORE AND AFTER ADAPTATION
+==================================================
+
+Evaluate:
+
+\[
+\mathcal{L}_{feedback}^{(0)}
+\]
+
+before optimization.
+
+Then evaluate:
+
+\[
+\mathcal{L}_{feedback}^{(1)}
+\]
+
+after adaptation.
+
+A successful adaptation should generally produce:
+
+\[
+\mathcal{L}_{feedback}^{(1)}
+<
+\mathcal{L}_{feedback}^{(0)}
+\]
+
+
+==================================================
+## 73. IMPORTANT SUCCESS CONDITION
+==================================================
+
+Phase 17 should not define success only as:
+
+\[
+\mathcal{L}_{feedback}
+\downarrow
+\]
+
+A more appropriate success criterion is:
+
+```text
+feedback preference objective improves
+
+AND
+
+baseline behavior remains controlled
+
+AND
+
+parameter drift remains auditable
+
+AND
+
+no severe functional forgetting occurs
+```
+
+
+==================================================
+## 74. EWC ABLATION
+==================================================
+
+A useful optional methodological comparison is:
+
+```text
+baseline model
+
+adaptation without EWC
+
+adaptation with EWC
+```
+
+This allows direct analysis of whether EWC reduces forgetting.
+
+
+==================================================
+## 75. PRIMARY MODEL POLICY
+==================================================
+
+The primary Phase-17 model should be:
+
+\[
+\Theta_1^{EWC}
+\]
+
+Any no-EWC adaptation must be saved separately as an ablation.
+
+It must not overwrite the primary EWC model.
+
+
+==================================================
+## 76. BASELINE CHECKPOINT PROTECTION
+==================================================
+
+The following files must never be overwritten:
+
+```text
+phase12_thetaE_baseline_encoder.pt
+
+phase12_thetaD_baseline_decoder.pt
+
+phase12_best_baseline_predictor.pt
+```
+
+Phase-17 adapted models must use new filenames.
+
+
+==================================================
+## 77. ADAPTED CHECKPOINTS
+==================================================
+
+Recommended:
+
+```text
+phase17_cycle1_adapted_encoder.pt
+
+phase17_cycle1_adapted_predictor.pt
+```
+
+The decoder remains:
+
+```text
+phase12_thetaD_baseline_decoder.pt
+```
+
+
+==================================================
+## 78. FISHER POLICY
+==================================================
+
+Phase 17 uses:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+from Phase 13.
+
+It does not recalculate them.
+
+A later phase may explicitly define:
+
+```text
+Fisher refresh
+
+cumulative consolidation
+
+new-cycle Fisher estimation
+```
+
+if required.
+
+
+==================================================
+## 79. UPDATED KNOWLEDGE STATE
+==================================================
+
+After successful Phase-17 adaptation:
+
+\[
+K_1
+=
+\{
+\Theta_1,
+F_E,
+F_P,
+Z_0,
+S_1
+\}
+\]
+
+where:
+
+\[
+\Theta_1
+=
+\{
+\theta_E^{(1)},
+\theta_D^*,
+\theta_P^{(1)}
+\}
+\]
+
+
+==================================================
+## 80. INTERPRETATION OF K1
+==================================================
+
+The state:
+
+\[
+K_1
+\]
+
+represents:
+
+**a computationally adapted Cycle-1 knowledge state**
+
+It does not represent:
+
+```text
+experimentally validated drug-discovery knowledge
+
+confirmed biological improvement
+
+clinical validation
+```
+
+
+==================================================
+## 81. SELF-EVOLUTION INTERPRETATION
+==================================================
+
+After Phase 17 it becomes appropriate to describe the system as having performed:
+
+**a controlled closed-loop computational adaptation step**
+
+because the system has completed:
+
+```text
+generation
+        ↓
+screening
+        ↓
+evaluation
+        ↓
+prioritization
+        ↓
+feedback definition
+        ↓
+parameter adaptation
+```
+
+However, the adaptation remains:
+
+**surrogate-guided**
+
+rather than:
+
+**experimentally grounded biological feedback**.
+
+
+==================================================
+## 82. RECOMMENDED OUTPUT FILES
+==================================================
+
+Recommended Phase-17 artifacts:
+
+```text
+phase17_adaptation_config.json
+
+phase17_feedback_candidate_manifest.csv
+
+phase17_precomputed_graph_manifest.csv
+
+phase17_feedback_pairs.csv
+
+phase17_feedback_train_candidates.csv
+
+phase17_feedback_validation_candidates.csv
+
+phase17_training_history.csv
+
+phase17_cycle1_adapted_encoder.pt
+
+phase17_cycle1_adapted_predictor.pt
+
+phase17_parameter_drift.csv
+
+phase17_fisher_weighted_drift.csv
+
+phase17_reference_latent_drift.csv
+
+phase17_reference_prediction_drift.csv
+
+phase17_feedback_pre_post_scores.csv
+
+phase17_feedback_ranking_comparison.csv
+
+phase17_knowledge_retention_summary.csv
+
+phase17_adaptation_qc_summary.csv
+
+phase17_adaptation_qc_summary.json
+```
+
+
+==================================================
+## 83. ADAPTATION CONFIGURATION FILE
+==================================================
+
+The configuration should record:
+
+```text
+cycle
+
+random seed
+
+S1 source file
+
+S1 size
+
+graph schema source
+
+Phase-9 normalization source
+
+Phase-12 latent normalization source
+
+Phase-12 target vocabulary source
+
+encoder checkpoint
+
+predictor checkpoint
+
+decoder checkpoint
+
+encoder Fisher source
+
+predictor Fisher source
+
+feedback ranking source
+
+minimum rank separation
+
+ranking margin
+
+pair weighting policy
+
+feedback split strategy
+
+optimizer
+
+learning rate
+
+maximum epochs
+
+early-stopping policy
+
+λ_EWC candidate values
+
+selected λ_EWC
+
+selection criterion
+```
+
+
+==================================================
+## 84. FEEDBACK CANDIDATE MANIFEST
+==================================================
+
+Retain at minimum:
+
+```text
+candidate_id
+
+canonical_smiles
+
+generation_method
+
+Phase-16 QED
+
+Phase-16 SA score
+
+Phase-16 SA utility
+
+Phase-16 biological relevance
+
+Phase-16 utility score
+
+Phase-16 utility rank
+
+Phase-16 acquisition score
+
+Phase-16 acquisition rank
+
+Pareto status
+
+top-5 target IDs
+
+top-5 target scores
+
+MC-dropout uncertainty
+```
+
+
+==================================================
+## 85. FEEDBACK PAIR TABLE
+==================================================
+
+Recommended fields:
+
+```text
+preferred_candidate_id
+
+comparison_candidate_id
+
+preferred_utility_rank
+
+comparison_utility_rank
+
+rank_difference
+
+preferred_baseline_utility
+
+comparison_baseline_utility
+
+utility_difference
+
+raw_pair_weight
+
+normalized_pair_weight
+
+feedback_split
+```
+
+
+==================================================
+## 86. TRAINING HISTORY
+==================================================
+
+For each epoch record:
+
+```text
+epoch
+
+feedback_train_loss
+
+feedback_validation_loss
+
+raw_encoder_EWC
+
+raw_predictor_EWC
+
+raw_total_EWC
+
+normalized_encoder_EWC
+
+normalized_predictor_EWC
+
+λ_EWC
+
+total_training_loss
+
+total_validation_loss
+
+pairwise_train_accuracy
+
+pairwise_validation_accuracy
+
+encoder_L2_drift
+
+predictor_L2_drift
+```
+
+
+==================================================
+## 87. PARAMETER-DRIFT FILE
+==================================================
+
+For every model parameter:
+
+```text
+model_component
+
+parameter_name
+
+number_of_elements
+
+mean_absolute_change
+
+maximum_absolute_change
+
+L1_change
+
+L2_change
+
+mean_Fisher
+
+maximum_Fisher
+
+raw_Fisher_weighted_drift
+
+normalized_Fisher_weighted_drift
+```
+
+
+==================================================
+## 88. REFERENCE LATENT-DRIFT FILE
+==================================================
+
+For each fixed Fisher-reference molecule:
+
+```text
+drug_id
+
+baseline_latent_norm
+
+adapted_latent_norm
+
+latent_L2_distance
+```
+
+
+==================================================
+## 89. REFERENCE PREDICTION-DRIFT FILE
+==================================================
+
+For each reference molecule:
+
+```text
+drug_id
+
+mean_absolute_target_score_drift
+
+maximum_target_score_drift
+
+baseline_top_target_id
+
+adapted_top_target_id
+
+top_target_changed
+```
+
+
+==================================================
+## 90. FEEDBACK PRE/POST FILE
+==================================================
+
+For each:
+
+\[
+S_1
+\]
+
+candidate:
+
+```text
+candidate_id
+
+baseline_biological_relevance
+
+adapted_biological_relevance
+
+biological_relevance_change
+
+baseline_utility
+
+adapted_utility
+
+utility_change
+
+baseline_top_target
+
+adapted_top_target
+
+top_target_changed
+```
+
+
+==================================================
+## 91. KNOWLEDGE-RETENTION SUMMARY
+==================================================
+
+Recommended aggregate quantities:
+
+```text
+feedback loss before adaptation
+
+feedback loss after adaptation
+
+training pair accuracy before adaptation
+
+training pair accuracy after adaptation
+
+validation pair accuracy before adaptation
+
+validation pair accuracy after adaptation
+
+mean baseline-reference latent drift
+
+median baseline-reference latent drift
+
+maximum baseline-reference latent drift
+
+mean baseline-reference target-score drift
+
+maximum baseline-reference target-score drift
+
+encoder raw Fisher-weighted drift
+
+predictor raw Fisher-weighted drift
+
+encoder normalized Fisher-weighted drift
+
+predictor normalized Fisher-weighted drift
+```
+
+
+==================================================
+## 92. PHASE-17 COMPLETION CRITERIA
+==================================================
+
+Phase 17 is complete when:
+
+1. The Phase-16 selected candidate pool \(S_1\) is loaded.
+
+2. Candidate count is verified.
+
+3. Candidate identities are preserved.
+
+4. Canonical structures are preserved.
+
+5. QED is preserved.
+
+6. SA utility is preserved.
+
+7. Phase-16 utility rank is preserved.
+
+8. Phase-16 acquisition rank is preserved.
+
+9. Phase-16 top-five target identities are preserved.
+
+10. The exact Phase-7 graph schema is reproduced.
+
+11. Exact Phase-9 normalization is reused.
+
+12. All usable \(S_1\) graphs are precomputed.
+
+13. Molecule-level feedback train/validation split is created.
+
+14. No molecule overlaps across feedback train and validation subsets.
+
+15. Preference pairs are constructed after molecule splitting.
+
+16. Minimum rank separation is enforced.
+
+17. Pair weights are recorded.
+
+18. Ranking margin is explicitly recorded.
+
+19. Baseline \(\theta_E^*\) is loaded.
+
+20. Baseline \(\theta_P^*\) is loaded.
+
+21. Decoder \(\theta_D^*\) remains frozen.
+
+22. \(F_E\) is loaded.
+
+23. \(F_P\) is loaded.
+
+24. Exact parameter anchors are preserved.
+
+25. Deterministic encoder \(\mu\) is used.
+
+26. Frozen Phase-12 latent normalization is reused.
+
+27. Frozen 130-target vocabulary is reused.
+
+28. Fixed Phase-16 top-five targets are used.
+
+29. Adapted biological relevance is calculated.
+
+30. Differentiable composite utility is calculated.
+
+31. Margin-based pairwise feedback loss is calculated.
+
+32. Raw encoder EWC is calculated.
+
+33. Raw predictor EWC is calculated.
+
+34. Normalized encoder EWC diagnostic is calculated.
+
+35. Normalized predictor EWC diagnostic is calculated.
+
+36. Total loss is calculated.
+
+37. \(\lambda_{EWC}\) is explicitly recorded.
+
+38. Test data is not used to tune \(\lambda_{EWC}\).
+
+39. Encoder parameters are updated.
+
+40. Predictor parameters are updated.
+
+41. Decoder parameters remain unchanged.
+
+42. Training history is saved.
+
+43. Adapted encoder is saved under a new filename.
+
+44. Adapted predictor is saved under a new filename.
+
+45. Baseline checkpoints remain unchanged.
+
+46. Parameter drift is calculated.
+
+47. Fisher-weighted drift is calculated.
+
+48. Baseline-reference latent drift is calculated.
+
+49. Baseline-reference target-score drift is calculated.
+
+50. Feedback pre/post scores are calculated.
+
+51. Pairwise ordering accuracy is calculated.
+
+52. Ranking comparison is calculated.
+
+53. Knowledge-retention summary is generated.
+
+54. No Fisher recalculation occurs.
+
+55. No experimental biological claims are introduced.
+
+56. Updated Cycle-1 state \(K_1\) is constructed.
+
+
+==================================================
+## 93. APPROPRIATE TERMINOLOGY AFTER PHASE 17
+==================================================
+
+It is appropriate to state:
+
+> “Cycle-1 prioritized candidates were used to define a computational preference-based feedback objective.”
+
+
+It is appropriate to state:
+
+> “The molecular encoder and DrugBank-grounded target-association predictor were adapted under diagonal empirical-Fisher EWC constraints.”
+
+
+It is appropriate to state:
+
+> “The feedback objective preserved the Phase-16 multi-objective utility structure while allowing biological relevance to remain the differentiable model-dependent component.”
+
+
+It is appropriate to state:
+
+> “Phase-16 target identities were frozen during adaptation to maintain a stationary target-association objective.”
+
+
+It is appropriate to state:
+
+> “Raw and parameter-normalized Fisher-weighted drift were recorded to audit model movement.”
+
+
+It is appropriate to state:
+
+> “Baseline-reference latent and target-score drift were evaluated to quantify knowledge retention.”
+
+
+It is appropriate to state:
+
+> “The resulting \(K_1\) represents a surrogate-guided computationally adapted state.”
+
+
+==================================================
+## 94. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+```text
+“The adapted model learned new experimental biology.”
+
+“The selected candidates are experimentally active.”
+
+“The system learned new binding affinities.”
+
+“The model learned IC50 values.”
+
+“The model learned Ki values.”
+
+“The model learned Kd values.”
+
+“The biological predictor became experimentally more accurate.”
+
+“The adapted candidates are validated drugs.”
+
+“EWC guarantees zero forgetting.”
+
+“The highest-ranked candidate is therapeutically superior.”
+
+“The adapted model has clinical validity.”
+```
+
+
+==================================================
+## FINAL PHASE-17 WORKFLOW
+==================================================
+
+```text
+PHASE-16 SELECTED CANDIDATES
+
+S1
+=
+50 candidates
+
+        ↓
+
+Preserve:
+
+candidate identity
+
+QED
+
+SAUtility
+
+utility rank
+
+acquisition rank
+
+fixed top-5 target IDs
+
+        ↓
+
+SELF-CONTAINED PHASE-7 GRAPH CONSTRUCTION
+
+21-node features
+
+14-edge features
+
+explicit H
+
+ETKDGv3
+
+MMFF94 / UFF
+
+centered coordinates
+
+        ↓
+
+PRECOMPUTE S1 GRAPHS ONCE
+
+        ↓
+
+Molecule-level Feedback Split
+
+80% feedback-train
+
+20% feedback-validation
+
+        ↓
+
+Construct Preference Pairs
+WITHIN each split
+
+        ↓
+
+Primary preference:
+
+Phase-16 Utility Rank
+
+        ↓
+
+Minimum Rank Separation
+
+ΔRank >= 5
+
+        ↓
+
+Pair Weight
+
+w_ij
+=
+|U_i^(0) - U_j^(0)|
+
+        ↓
+
+Load θE*
+
+Load θP*
+
+Keep θD* frozen
+
+        ↓
+
+Load F_E
+
+Load F_P
+
+        ↓
+
+Preserve θE* and θP* anchors
+
+        ↓
+
+Candidate Graph
+
+        ↓
+
+Adaptable θE
+
+        ↓
+
+Deterministic μ
+
+        ↓
+
+Frozen Phase-12 Latent Normalization
+
+        ↓
+
+Adaptable θP
+
+        ↓
+
+130 target-association scores
+
+        ↓
+
+Extract FIXED Phase-16 Top-5 Targets
+
+        ↓
+
+Adapted Biological Relevance
+
+B_i^adapt
+=
+mean(
+scores on fixed top-5 targets
+)
+
+        ↓
+
+DIFFERENTIABLE ADAPTED UTILITY
+
+U_i^adapt
+=
+0.30 QED_i
++
+0.20 SAUtility_i
++
+0.50 B_i^adapt
+
+        ↓
+
+MARGIN-BASED PAIRWISE FEEDBACK LOSS
+
+L_feedback
+=
+weighted mean
+[
+softplus
+(
+m
+-
+(
+U_preferred^adapt
+-
+U_comparison^adapt
+)
+)
+]
+
+        +
+
+ENCODER EWC
+
+L_EWC,E
+=
+Σ
+F_E,j
+(
+θ_E,j
+-
+θ_E,j*
+)^2
+
+        +
+
+PREDICTOR EWC
+
+L_EWC,P
+=
+Σ
+F_P,j
+(
+θ_P,j
+-
+θ_P,j*
+)^2
+
+        ↓
+
+TOTAL LOSS
+
+L_total
+=
+L_feedback
++
+λ_EWC
+(
+L_EWC,E
++
+L_EWC,P
+)
+
+        ↓
+
+Controlled AdamW Adaptation
+
+        ↓
+
+θE(1)
+
+θP(1)
+
+θD* unchanged
+
+        ↓
+
+Parameter Drift Audit
+
+        ↓
+
+Fisher-Weighted Drift Audit
+
+        ↓
+
+128-Molecule Baseline Reference Evaluation
+
+        ↓
+
+Latent Drift
+
+        +
+
+Target-Score Drift
+
+        ↓
+
+Feedback Candidate Pre/Post Comparison
+
+        ↓
+
+Pairwise Ranking Comparison
+
+        ↓
+
+Knowledge-Retention Assessment
+
+        ↓
+
+UPDATED CYCLE-1 STATE
+
+K1
+=
+{
+θE(1),
+θD*,
+θP(1),
+F_E,
+F_P,
+Z0,
+S1
+}
+```
+
+
+==================================================
+## FINAL PHASE-17 PRINCIPLE
+==================================================
+
+Phase 17 performs:
+
+**controlled surrogate-guided continual adaptation**
+
+not:
+
+**experimental biological retraining**.
+
+The central objective is:
+
+\[
+\boxed{
+\text{respond to computational feedback}
+\quad
+\text{while constraining loss of baseline knowledge}
+}
+\]
+
+
+==================================================
+## NEXT PHASE
+==================================================
+
+# PHASE 18 — CLOSED-LOOP CYCLE-1 VALIDATION AND UPDATED GENERATION READINESS
+
+Phase 18 should compare:
+
+\[
+K_0
+\]
+
+with:
+
+\[
+K_1
+\]
+
+to determine whether the adapted model is suitable for another molecular-generation cycle.
+
+Recommended evaluation areas:
+
+```text
+baseline knowledge retention
+
+feedback response
+
+parameter stability
+
+latent-space behavior
+
+target-association behavior
+
+post-adaptation uncertainty
+
+generation readiness
+```
+
+Only after the adapted state passes these checks should the next closed-loop molecular generation cycle begin.
+
+==================
 ---
 
 # Phase 18 — Epistemic Uncertainty Estimation
