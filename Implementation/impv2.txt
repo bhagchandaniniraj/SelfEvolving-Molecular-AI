@@ -9297,144 +9297,7816 @@ Construction
 
 
 ---
+========================
 
-# Phase 13 — Baseline Knowledge Consolidation
+# PHASE 13 — BASELINE KNOWLEDGE CONSOLIDATION AND FISHER INFORMATION REFERENCE CONSTRUCTION
 
-This phase should happen **before the first closed-loop cycle**.
 
-After baseline training:
+## OBJECTIVE
+
+Phase 13 is performed after establishment of the frozen baseline model state in Phase 12 and before the first closed-loop adaptation cycle.
+
+Phase 12 established the complete baseline parameter state:
+
+\[
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
+\]
+
+where:
+
+\[
+\theta_E^*
+\]
+
+represents the trained baseline geometry-aware molecular encoder,
+
+\[
+\theta_D^*
+\]
+
+represents the trained latent-conditioned molecular generative decoder,
+
+and:
+
+\[
+\theta_P^*
+\]
+
+represents the trained DrugBank-grounded target-association predictor.
+
+Phase 12 also established the fixed deterministic baseline latent representation:
+
+\[
+Z_0
+\]
+
+Phase 13 does not retrain these components.
+
+Instead, Phase 13 estimates how important individual baseline model parameters are for preserving the previously learned DrugBank-grounded target-association task.
+
+The primary mechanism used for this purpose is a:
+
+**DIAGONAL EMPIRICAL FISHER INFORMATION APPROXIMATION**
+
+The resulting parameter-importance values will later be used by Elastic Weight Consolidation, or EWC, during continual adaptation.
+
+Conceptually:
 
 ```text
-Trained baseline model
-      ↓
-Freeze/copy reference parameters Θ*
-      ↓
-Estimate parameter importance
-      ↓
-Diagonal empirical Fisher matrix F
+Frozen Baseline System Θ*
+        ↓
+Fixed Training-Derived Fisher Reference Corpus
+        ↓
+Baseline Target-Association Objective
+        ↓
+Parameter Gradients
+        ↓
+Square Per-Sample Gradients
+        ↓
+Average Across Fisher Reference Molecules
+        ↓
+Diagonal Fisher Importance
+        ↓
+F_E + F_P
+        ↓
+Consolidated Baseline Knowledge State K0
 ```
 
-Your original workflow specifically proposed calculating a **diagonal Fisher approximation**, rather than a dense Fisher matrix, for computational practicality. Pasted text
 
-This produces:
+==================================================
+## IMPORTANT DISTINCTION
+==================================================
+
+Phase 13 estimates parameter importance.
+
+It does **not** modify the baseline model.
+
+Phase 13 performs:
+
+```text
+Fisher-gradient calculation
+parameter-importance estimation
+reference-state consolidation
+integrity verification
+```
+
+Phase 13 does **not** perform:
+
+```text
+optimizer updates
+parameter optimization
+EWC regularization
+continual learning
+candidate optimization
+closed-loop feedback
+UCB acquisition
+decoder adaptation
+encoder adaptation
+predictor adaptation
+```
+
+Therefore:
+
+\[
+\Theta_{\text{after Phase 13}}
+=
+\Theta^*
+\]
+
+The baseline parameters must remain exactly unchanged.
+
+
+==================================================
+## 1. INPUT BASELINE STATE
+==================================================
+
+Phase 13 begins from the finalized Phase-12 baseline state:
+
+\[
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
+\]
+
+with:
+
+### Encoder
+
+\[
+\theta_E^*
+\]
+
+Trained geometry-aware variational molecular encoder from Phase 10.
+
+Its deterministic molecular representation is:
+
+\[
+z=\mu
+\]
+
+
+### Generative Decoder
+
+\[
+\theta_D^*
+\]
+
+Trained strongly latent-conditioned molecular generative decoder from Phase 11.
+
+
+### Biological-Relevance Predictor
+
+\[
+\theta_P^*
+\]
+
+Trained DrugBank-grounded multi-label target-association predictor from Phase 12.
+
+
+### Latent Reference
+
+\[
+Z_0
+\]
+
+Fixed deterministic baseline latent molecular representation established in Phase 10 and consolidated in Phase 12.
+
+
+Additional Phase-12 information reused in Phase 13 includes:
+
+```text
+training-only predictor latent normalization
+training-only target vocabulary
+training-derived positive class weights
+baseline parameter hashes
+Θ* reference bundle
+```
+
+Phase-9/10 graph-feature normalization is also reused without modification.
+
+
+==================================================
+## 2. FISHER REFERENCE CORPUS
+==================================================
+
+The Fisher calculation uses the fixed Phase-8 Fisher-reference subset.
+
+Current Fisher reference size:
+
+\[
+N=128
+\]
+
+molecules.
+
+These molecules were selected exclusively from the training corpus.
+
+Therefore:
+
+\[
+D_{\text{Fisher}}
+\subset
+D_{\text{train}}
+\]
+
+and:
+
+\[
+D_{\text{Fisher}}
+\cap
+D_{\text{validation}}
+=
+\varnothing
+\]
+
+\[
+D_{\text{Fisher}}
+\cap
+D_{\text{test}}
+=
+\varnothing
+\]
+
+The Fisher-reference subset is fixed.
+
+It must not be regenerated, resampled, or replaced during Phase 13 or future comparison cycles.
+
+This ensures that future importance calculations remain comparable.
+
+
+==================================================
+## 3. WHY A DIAGONAL FISHER APPROXIMATION IS USED
+==================================================
+
+A complete Fisher information matrix would contain covariance relationships among every pair of model parameters.
+
+For a model containing tens of thousands of parameters, the full matrix would be computationally expensive and unnecessary for the intended EWC implementation.
+
+Therefore Phase 13 uses a diagonal approximation.
+
+For every model parameter element:
+
+\[
+\theta_j
+\]
+
+a single importance value is retained:
 
 \[
 F_j
 \]
 
-for each relevant model parameter.
-
-Together:
+Thus:
 
 ```text
-Θ*
+parameter θ1 → F1
+parameter θ2 → F2
+parameter θ3 → F3
+...
+```
+
+Only the diagonal parameter importance values are stored.
+
+This provides a computationally practical importance estimate suitable for later EWC regularization.
+
+
+==================================================
+## 4. EMPIRICAL FISHER DEFINITION
+==================================================
+
+For Fisher-reference molecule \(i\) and model parameter \(\theta_j\):
+
+\[
+g_{ij}
+=
+\frac{\partial \mathcal{L}_i}
+{\partial \theta_j}
+\]
+
+where:
+
+\[
+\mathcal{L}_i
+\]
+
+is the baseline task loss for Fisher-reference molecule \(i\).
+
+The diagonal empirical Fisher approximation is:
+
+\[
+F_j
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+g_{ij}^{2}
+\]
+
+or equivalently:
+
+\[
+F_j
+=
+\frac{1}{N}
+\sum_{i=1}^{N}
+\left(
+\frac{\partial \mathcal{L}_i}
+{\partial \theta_j}
+\right)^2
+\]
+
+where:
+
+\[
+N=128
+\]
+
+for the current Fisher-reference corpus.
+
+A relatively large:
+
+\[
+F_j
+\]
+
+means the baseline task loss is more sensitive to changes in that parameter under the defined Fisher objective and reference dataset.
+
+A relatively small:
+
+\[
+F_j
+\]
+
+means the parameter is less strongly constrained by this particular baseline objective.
+
+Fisher importance therefore represents:
+
+**model-parameter importance under the defined task**
+
+and not universal chemical or biological importance.
+
+
+==================================================
+## 5. FISHER INFORMATION REQUIRES A DEFINED TASK
+==================================================
+
+Fisher importance is meaningful only with respect to a specified model objective.
+
+It is not appropriate to calculate arbitrary gradients and describe them as generic knowledge importance.
+
+For the current system, the baseline biological objective is:
+
+**DrugBank-grounded multi-label target-association prediction**
+
+Therefore the Phase-13 Fisher calculation is based on the frozen Phase-12 predictor objective.
+
+
+==================================================
+## 6. PRIMARY FISHER OBJECTIVE
+==================================================
+
+The primary Fisher loss is:
+
+**multi-label target-association Binary Cross Entropy with Logits**
+
+Conceptually:
+
+```text
+Fisher-reference molecular graph
+        ↓
+Baseline Encoder θE*
+        ↓
+Deterministic latent μ
+        ↓
+Frozen Phase-12 latent normalization
+        ↓
+Baseline Predictor θP*
+        ↓
+130 target-association logits
+        ↓
+DrugBank-derived target-association labels
+        ↓
+BCEWithLogitsLoss
+        ↓
+Backpropagation
+        ↓
+Per-sample gradients
+        ↓
+Squared gradients
+        ↓
+Fisher accumulation
+```
+
+
+The baseline Fisher objective therefore preserves knowledge associated with:
+
+```text
+learned molecular representation
 +
+DrugBank-grounded target-association prediction
+```
+
+
+==================================================
+## 7. PARAMETERS INCLUDED IN FISHER ESTIMATION
+==================================================
+
+The primary Fisher parameter set is:
+
+\[
+\theta_E^*
++
+\theta_P^*
+\]
+
+Therefore Phase 13 calculates:
+
+\[
+F_E
+\]
+
+for encoder parameters,
+
+and:
+
+\[
+F_P
+\]
+
+for predictor parameters.
+
+
+This design is appropriate because future EWC-controlled adaptation may modify:
+
+```text
+encoder parameters
+and/or
+predictor parameters
+```
+
+
+==================================================
+## 8. DECODER POLICY
+==================================================
+
+The generative decoder:
+
+\[
+\theta_D^*
+\]
+
+does not directly participate in the DrugBank target-association prediction loss.
+
+Therefore predictor BCE gradients do not provide a meaningful Fisher estimate for decoder parameters.
+
+Consequently:
+
+\[
+F_D
+\]
+
+is **not calculated** in the current baseline Phase 13 implementation.
+
+Instead:
+
+\[
+\theta_D^*
+\]
+
+is preserved as a frozen baseline checkpoint.
+
+If a future methodology explicitly allows decoder adaptation, decoder-specific importance should be estimated separately using a generation-specific objective such as SELFIES next-token negative log-likelihood.
+
+
+==================================================
+## 9. OPTIONAL FUTURE DECODER FISHER
+==================================================
+
+If future adaptation modifies the decoder, a separate decoder Fisher could be estimated using:
+
+```text
+reference latent representation
+        ↓
+baseline decoder θD*
+        ↓
+SELFIES token probability distribution
+        ↓
+reference SELFIES sequence
+        ↓
+token-level cross-entropy
+        ↓
+decoder gradients
+        ↓
+squared gradients
+        ↓
+F_D
+```
+
+In such a future extension:
+
+\[
 F
-```
+=
+\{
+F_E,
+F_D,
+F_P
+\}
+\]
 
-represent the consolidated chemical knowledge that subsequent adaptation should preserve.
+However, the current baseline implementation deliberately uses:
 
----
+\[
+F
+=
+\{
+F_E,
+F_P
+\}
+\]
 
-# Phase 14 — Candidate Generation from the Latent Space
 
-The first closed-loop cycle then begins.
+==================================================
+## 10. ACTUAL ENCODER COMPUTATIONAL GRAPH
+==================================================
 
-Candidates can originate from:
+Phase 12 predictor training used saved deterministic Phase-10 latent vectors.
+
+That was appropriate because Phase 12 trained only:
+
+\[
+\theta_P
+\]
+
+and deliberately preserved:
+
+\[
+\theta_E^*
+\]
+
+However, stored latent vectors cannot be used to estimate encoder Fisher.
+
+To calculate:
+
+\[
+\frac{\partial \mathcal{L}}
+{\partial \theta_E}
+\]
+
+the actual encoder computational graph must remain connected.
+
+Therefore Phase 13 uses:
 
 ```text
-Latent sampling
-Latent perturbation
-Interpolation
-Neighborhood sampling
-Decoder-driven generation
+Phase-7 molecular graph
+        ↓
+actual Phase-10 encoder architecture
+        ↓
+θE* checkpoint
+        ↓
+deterministic μ
+        ↓
+predictor
+        ↓
+loss
 ```
 
-rather than simply randomly taking existing DrugBank molecules.
+The final implementation searches the active notebook environment for the previously instantiated Phase-10 encoder architecture whose state-dictionary structure matches the Phase-10 checkpoint.
 
-This distinction is important.
-
-Your earlier demonstration code used existing DrugBank SMILES as candidate placeholders in the loop. Pasted text
-
-That may be useful during debugging, but the final implementation should demonstrate that the decoder actually proposes candidates from the learned latent representation wherever feasible.
-
-The candidate pool should therefore be:
+That encoder architecture is copied and loaded with:
 
 \[
-C_t=\{c_1,c_2,\dots,c_n\}
+\theta_E^*
 \]
 
-at cycle \(t\).
+This ensures that the Fisher calculation uses the same trained encoder computational structure rather than a reconstructed approximation.
 
----
 
-# Phase 15 — Chemical Validity and Novelty Screening
+==================================================
+## 11. DETERMINISTIC LATENT REPRESENTATION
+==================================================
 
-Before pharmacological scoring, generated candidates should undergo a screening stage.
+The Fisher calculation uses:
 
-Evaluate:
+\[
+z=\mu
+\]
+
+rather than stochastic variational sampling.
+
+Therefore:
 
 ```text
-Validity
-Uniqueness
-Novelty
-Molecular size
-Valence correctness
-Disconnected fragments
-Basic physicochemical feasibility
+graph
+↓
+encoder
+↓
+μ
+↓
+predictor
 ```
 
-This phase prevents malformed candidates from entering the feedback engine.
+is used.
 
-The accepted candidates proceed to the in-silico evaluation engine.
+The stochastic representation:
+
+\[
+z
+=
+\mu
++
+\sigma\epsilon
+\]
+
+is not used for Fisher estimation.
+
+This avoids unnecessary sampling noise and produces a reproducible importance reference.
+
+
+==================================================
+## 12. GRAPH-FEATURE NORMALIZATION
+==================================================
+
+The molecular encoder receives graph node features using the same normalization established during Phase 9 and reused during Phase 10.
+
+No new feature normalization is fitted during Phase 13.
+
+Therefore:
+
+```text
+Phase-9/10 training-derived normalization
+        ↓
+reused unchanged in Phase 13
+```
+
+The normalization statistics remain part of the frozen preprocessing state.
+
+
+==================================================
+## 13. PHASE-12 LATENT NORMALIZATION
+==================================================
+
+The deterministic encoder output:
+
+\[
+\mu
+\]
+
+is passed to the predictor using the same training-only latent normalization established in Phase 12.
+
+For latent dimension \(k\):
+
+\[
+z'_k
+=
+\frac{
+z_k-\mu_{\text{train},k}
+}{
+\sigma_{\text{train},k}
+}
+\]
+
+These statistics remain fixed.
+
+They are not recomputed using the Fisher subset.
+
+
+==================================================
+## 14. TARGET VOCABULARY
+==================================================
+
+Phase 13 reuses the exact frozen Phase-12 target vocabulary.
+
+Current number of predictor target classes:
+
+\[
+K=130
+\]
+
+The following operations are prohibited during Phase 13:
+
+```text
+recalculating target support
+adding new targets
+removing target classes
+reordering target classes
+rebuilding the target vocabulary
+```
+
+The Fisher task must remain identical to the Phase-12 predictor task.
+
+
+==================================================
+## 15. TARGET LABEL CONSTRUCTION
+==================================================
+
+For each Fisher-reference molecule:
+
+\[
+y_i
+\in
+\{0,1\}^{130}
+\]
+
+A target position is:
+
+\[
+1
+\]
+
+when the corresponding DrugBank target association is present,
+
+and:
+
+\[
+0
+\]
+
+otherwise.
+
+Duplicate DrugBank rows corresponding to the same:
+
+```text
+drug_id + target_id
+```
+
+are collapsed into a single binary association.
+
+Therefore the predictor models association presence rather than XML row multiplicity.
+
+
+==================================================
+## 16. CLASS-WEIGHT CONSISTENCY
+==================================================
+
+Phase 13 reuses the exact positive class weights established during Phase 12.
+
+These weights were calculated from training data only.
+
+Phase 13 does not calculate new class weights from the 128 Fisher-reference molecules.
+
+Doing so would redefine the baseline predictor task.
+
+The Fisher loss therefore remains consistent with the finalized Phase-12 objective.
+
+
+==================================================
+## 17. SAMPLE-WISE FISHER ESTIMATION
+==================================================
+
+The Fisher reference is processed one molecule at a time.
+
+Thus:
+
+\[
+B=1
+\]
+
+For each Fisher-reference molecule:
+
+1. Zero encoder and predictor gradients.
+
+2. Load the saved molecular graph.
+
+3. Apply the frozen Phase-9/10 graph-feature normalization.
+
+4. Pass the graph through the actual baseline encoder:
+
+\[
+\theta_E^*
+\]
+
+5. Extract deterministic:
+
+\[
+\mu
+\]
+
+6. Apply the frozen Phase-12 latent normalization.
+
+7. Pass the normalized latent representation through:
+
+\[
+\theta_P^*
+\]
+
+8. Construct the 130-dimensional DrugBank target-association vector.
+
+9. Compute:
+
+\[
+\mathcal{L}_i
+=
+\operatorname{BCEWithLogitsLoss}
+\]
+
+10. Backpropagate the sample loss.
+
+11. Read the gradient for each included parameter.
+
+12. Square the gradient immediately:
+
+\[
+g_{ij}^2
+\]
+
+13. Add the squared gradient to the Fisher accumulator.
+
+No optimizer update occurs.
+
+After all 128 molecules:
+
+\[
+F_j
+=
+\frac{F_j}{128}
+\]
+
+
+==================================================
+## 18. CRITICAL MATHEMATICAL DISTINCTION
+==================================================
+
+The correct empirical Fisher calculation is:
+
+\[
+\frac{1}{N}
+\sum_i
+g_i^2
+\]
+
+The following shortcut would be incorrect:
+
+\[
+\left(
+\frac{1}{N}
+\sum_i
+g_i
+\right)^2
+\]
+
+because:
+
+**average squared gradient**
+
+is not equal to:
+
+**square of average gradient**
+
+The implementation therefore uses:
+
+```text
+individual sample gradient
+↓
+square gradient
+↓
+accumulate
+↓
+average after all molecules
+```
+
+
+==================================================
+## 19. NO PARAMETER UPDATES
+==================================================
+
+An optimizer is not required for Fisher estimation.
+
+Therefore Phase 13 does not instantiate an optimizer.
+
+The computational sequence is:
+
+```text
+zero gradients
+↓
+forward pass
+↓
+loss calculation
+↓
+backward pass
+↓
+read gradient
+↓
+square gradient
+↓
+accumulate Fisher
+↓
+next molecule
+```
+
+The following operation never occurs:
+
+```text
+optimizer.step()
+```
+
+Thus Fisher estimation does not modify the baseline parameters.
+
+
+==================================================
+## 20. MODEL MODE DURING FISHER ESTIMATION
+==================================================
+
+The encoder and predictor operate in deterministic evaluation-compatible mode.
+
+The Phase-12 predictor contains dropout.
+
+Therefore the predictor is placed in:
+
+```text
+eval()
+```
+
+mode.
+
+This prevents random dropout masks from changing the Fisher reference.
+
+Evaluation mode does not disable gradient calculation.
+
+Gradients are still calculated because parameter gradients remain enabled during the Fisher computation.
+
+
+==================================================
+## 21. PARAMETER STORAGE
+==================================================
+
+For every Fisher-controlled parameter, Phase 13 preserves:
+
+```text
+parameter name
+tensor shape
+number of parameter elements
+baseline parameter value θ*
+Fisher tensor F
+```
+
+Encoder parameter names include structures such as:
+
+```text
+node_embedding
+egnn_layers
+graph_mlp
+mu_head
+```
+
+Predictor parameter names include:
+
+```text
+predictor.network
+```
+
+The baseline parameter values are preserved alongside their Fisher tensors so they can later be used directly in the EWC penalty.
+
+
+==================================================
+## 22. INACTIVE PARAMETER POLICY
+==================================================
+
+Not every encoder parameter is guaranteed to receive a gradient under the deterministic target-association Fisher objective.
+
+If:
+
+```text
+parameter.grad is None
+```
+
+the parameter is treated as inactive under the current Fisher pathway.
+
+Its accumulated Fisher remains:
+
+\[
+F_j=0
+\]
+
+This is not considered a computational failure.
+
+
+==================================================
+## 23. LOGVAR POLICY
+==================================================
+
+Because Phase 13 uses:
+
+\[
+z=\mu
+\]
+
+the variational:
+
+```text
+logvar_head
+```
+
+is excluded from the deterministic predictor pathway.
+
+Therefore its parameters may receive no gradient.
+
+This is expected.
+
+The final implementation does not artificially assign Fisher importance to the log-variance branch.
+
+
+==================================================
+## 24. OTHER INACTIVE BRANCHES
+==================================================
+
+Parameters other than the log-variance branch may also receive no gradient under this specific downstream objective.
+
+In the observed Phase-13 calculation, six encoder parameter tensors were inactive:
+
+```text
+egnn_layers.1.coordinate_mlp.0.bias
+egnn_layers.1.coordinate_mlp.0.weight
+egnn_layers.1.coordinate_mlp.2.bias
+egnn_layers.1.coordinate_mlp.2.weight
+logvar_head.bias
+logvar_head.weight
+```
+
+No predictor parameter tensor was inactive.
+
+This does **not** mean these encoder parameters are globally unimportant.
+
+It means that under the specific:
+
+```text
+deterministic μ
++
+DrugBank target-association BCE
++
+128-molecule Fisher reference
+```
+
+pathway, they did not receive a gradient.
+
+Therefore:
+
+\[
+F_j=0
+\]
+
+should be interpreted as:
+
+**inactive or unconstrained under this Fisher objective**
+
+and not:
+
+**universally irrelevant parameter**.
+
+
+==================================================
+## 25. FISHER NON-NEGATIVITY
+==================================================
+
+Because Fisher is calculated from squared gradients:
+
+\[
+F_j \ge 0
+\]
+
+for all parameter elements.
+
+Phase 13 validates that Fisher tensors contain:
+
+```text
+no negative values
+no NaN values
+no positive infinity
+no negative infinity
+```
+
+Any violation would invalidate the Fisher reference.
+
+
+==================================================
+## 26. FISHER SPARSITY
+==================================================
+
+Some Fisher elements may equal:
+
+\[
+0
+\]
+
+Possible explanations include:
+
+```text
+inactive computation branch
+deterministic μ pathway excluding logvar
+task-specific insensitivity
+inactive neural units
+zero sample gradients
+```
+
+Therefore the following are reported:
+
+```text
+total Fisher elements
+non-zero Fisher elements
+zero Fisher elements
+non-zero fraction
+```
+
+
+==================================================
+## 27. FISHER SCALE DIAGNOSTICS
+==================================================
+
+For both encoder and predictor Fisher tensors, Phase 13 reports:
+
+```text
+minimum
+maximum
+mean
+median
+standard deviation
+sum
+non-zero elements
+zero elements
+non-zero fraction
+```
+
+Statistics are reported separately for:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+
+==================================================
+## 28. NORMALIZED IMPORTANCE
+==================================================
+
+Raw Fisher values remain the primary quantities preserved for future EWC.
+
+For reporting and comparison only, optional normalized importance is calculated as:
+
+\[
+F_{\text{normalized},j}
+=
+\frac{
+F_j
+}{
+\sum_k F_k+\epsilon
+}
+\]
+
+The normalized values are used only to interpret relative importance.
+
+They do not overwrite the raw Fisher tensors.
+
+
+==================================================
+## 29. BASELINE PARAMETER REFERENCE
+==================================================
+
+Future EWC requires both:
+
+\[
+\theta_j^*
+\]
+
+and:
+
+\[
+F_j
+\]
+
+for each EWC-controlled parameter.
+
+Therefore Phase 13 stores:
+
+```text
+encoder θE*
+encoder F_E
+
+predictor θP*
+predictor F_P
+```
+
+The decoder:
+
+\[
+\theta_D^*
+\]
+
+remains part of the complete baseline model state but does not receive a Fisher tensor in the current implementation.
+
+
+==================================================
+## 30. BASELINE INTEGRITY VERIFICATION
+==================================================
+
+Before Fisher estimation, Phase 13 verifies that the current encoder, decoder, and predictor checkpoint state dictionaries exactly match the Phase-12:
+
+\[
+\Theta^*
+\]
+
+reference bundle.
+
+Specifically:
+
+```text
+current θE* == Phase-12 θE*
+current θD* == Phase-12 θD*
+current θP* == Phase-12 θP*
+```
+
+This parameter-level verification ensures Fisher is being calculated from the correct baseline model.
+
+
+==================================================
+## 31. SHA-256 CHECKPOINT INTEGRITY
+==================================================
+
+Before Fisher estimation, SHA-256 hashes are calculated for:
+
+```text
+Phase-10 encoder checkpoint
+Phase-11 decoder checkpoint
+Phase-12 predictor checkpoint
+```
+
+After Fisher estimation, the hashes are calculated again.
+
+Required result:
+
+\[
+hash_{\text{before}}
+=
+hash_{\text{after}}
+\]
+
+for every baseline checkpoint.
+
+This verifies that Fisher estimation did not overwrite or alter the saved baseline model files.
+
+
+==================================================
+## 32. FISHER REFERENCE TRACEABILITY
+==================================================
+
+Phase 13 saves an explicit Fisher-reference manifest.
+
+For every Fisher molecule the manifest records:
+
+```text
+graph_id
+drug_id
+resolved graph file
+number of selected target labels
+whether at least one selected target is present
+```
+
+This makes the Fisher calculation auditable and reproducible.
+
+
+==================================================
+## 33. MOLECULES WITH ZERO SELECTED POSITIVE TARGETS
+==================================================
+
+Some Fisher-reference molecules do not contain a positive association among the frozen 130 target classes.
+
+These molecules are retained.
+
+Their target vectors still contain valid negative-label information.
+
+Observed Fisher-reference composition:
+
+```text
+Total Fisher molecules                  = 128
+With ≥1 selected target                 = 100
+With 0 selected targets                 = 28
+```
+
+Therefore all 128 molecules contribute to the defined multi-label Fisher objective.
+
+
+==================================================
+## 34. OBSERVED FISHER TASK LOSS
+==================================================
+
+The observed Fisher-reference BCE losses were:
+
+```text
+Mean Fisher task loss   = 0.16348652
+Median Fisher task loss = 0.12749443
+```
+
+These values summarize the frozen predictor task loss across the fixed Fisher-reference molecules.
+
+They are not optimization losses because no parameter update occurs.
+
+
+==================================================
+## 35. OBSERVED ENCODER FISHER RESULTS
+==================================================
+
+The encoder contains:
+
+```text
+70,274 parameter elements
+```
+
+Observed encoder Fisher statistics:
+
+```text
+Total parameter elements     = 70,274
+Non-zero Fisher elements     = 62,945
+Zero Fisher elements         = 7,329
+Non-zero fraction            = 89.5708%
+
+Minimum Fisher               = 0.0000000000e+00
+Maximum Fisher               = 3.3112639189e-01
+Mean Fisher                  = 3.2665659091e-04
+Median Fisher                = 2.8831998407e-06
+Fisher sum                   = 2.2955465317e+01
+```
+
+Therefore approximately:
+
+\[
+89.57\%
+\]
+
+of encoder parameter elements received non-zero importance under the baseline target-association Fisher objective.
+
+
+==================================================
+## 36. OBSERVED PREDICTOR FISHER RESULTS
+==================================================
+
+The predictor contains:
+
+```text
+8,674 parameter elements
+```
+
+Observed predictor Fisher statistics:
+
+```text
+Total parameter elements     = 8,674
+Non-zero Fisher elements     = 8,674
+Zero Fisher elements         = 0
+Non-zero fraction            = 100%
+
+Minimum Fisher               = 4.5052281905e-09
+Maximum Fisher               = 2.3111002520e-03
+Mean Fisher                  = 9.3684247986e-05
+Median Fisher                = 3.9271002606e-05
+Fisher sum                   = 8.1261718273e-01
+```
+
+Thus all predictor parameter elements received non-zero Fisher importance under the defined task.
+
+
+==================================================
+## 37. OBSERVED HIGH-IMPORTANCE PARAMETER GROUPS
+==================================================
+
+The strongest Fisher contributions were concentrated in parameter groups involved in constructing and transforming the deterministic latent molecular representation.
+
+Important parameter groups included:
+
+```text
+node_embedding.0.weight
+mu_head.weight
+node_embedding.0.bias
+graph_mlp.0.weight
+egnn_layers.1.node_norm.bias
+graph_mlp.0.bias
+egnn_layers.1.node_mlp
+egnn_layers.0.node_norm
+predictor network layers
+```
+
+The particularly strong importance of:
+
+```text
+mu_head
+node_embedding
+graph-level latent transformation
+```
+
+is consistent with the Fisher objective because these parameters directly affect:
+
+\[
+\mu
+\]
+
+which is then used by the target-association predictor.
+
+
+==================================================
+## 38. INTERPRETATION OF FISHER SCALE
+==================================================
+
+Absolute Fisher magnitudes should not be interpreted as direct chemical quantities.
+
+For example:
+
+```text
+larger encoder Fisher
+```
+
+does not mean:
+
+```text
+greater chemical activity
+greater binding affinity
+greater therapeutic relevance
+```
+
+Instead, it means:
+
+**the baseline target-association loss is more sensitive to changes in that model parameter under the fixed Fisher-reference dataset.**
+
+
+==================================================
+## 39. CONSOLIDATED KNOWLEDGE STATE
+==================================================
+
+After Phase 13, define:
+
+\[
+K_0
+\]
+
+as the consolidated baseline knowledge state.
+
+For the implemented system:
+
+\[
+K_0
+=
+\{
+\Theta^*,
+F_E,
+F_P,
+Z_0
+\}
+\]
+
+where:
+
+\[
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
+\]
+
+Therefore:
+
+\[
+K_0
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*,
+F_E,
+F_P,
+Z_0
+\}
+\]
+
+The decoder parameter state remains preserved even though:
+
+\[
+F_D
+\]
+
+is not calculated.
+
+
+==================================================
+## 40. FUTURE EWC OBJECTIVE
+==================================================
+
+Phase 13 does **not** apply EWC.
+
+It only prepares the information required for later EWC-controlled adaptation.
+
+During a later adaptation phase, an EWC term may take the form:
+
+\[
+\mathcal{L}_{EWC}
+=
+\lambda_{EWC}
+\sum_j
+F_j
+(\theta_j-\theta_j^*)^2
+\]
+
+and the total future adaptation loss may be:
+
+\[
+\mathcal{L}_{total}
+=
+\mathcal{L}_{adapt}
++
+\lambda_{EWC}
+\sum_j
+F_j
+(\theta_j-\theta_j^*)^2
+\]
+
+where:
+
+\[
+\theta_j^*
+\]
+
+is the Phase-12 baseline parameter value,
+
+\[
+F_j
+\]
+
+is the Phase-13 Fisher importance,
+
+\[
+\theta_j
+\]
+
+is the parameter value during future adaptation,
+
+and:
+
+\[
+\lambda_{EWC}
+\]
+
+controls the strength of baseline-knowledge preservation.
+
+
+==================================================
+## 41. IMPORTANT INTERPRETATION
+==================================================
+
+Fisher importance does **not** represent:
+
+```text
+atomic importance
+molecular substructure importance
+chemical causality
+biological causality
+binding affinity
+clinical efficacy
+therapeutic superiority
+```
+
+It represents:
+
+**model-parameter importance under the defined baseline task and Fisher-reference corpus.**
+
+Similarly:
+
+\[
+F_j=0
+\]
+
+does not establish that a parameter is universally useless.
+
+It means that the parameter received no importance signal under this particular Fisher objective.
+
+
+==================================================
+## 42. PHASE-13 SAVED OUTPUTS
+==================================================
+
+Phase 13 saves:
+
+```text
+phase13_fisher_config.json
+
+phase13_fisher_reference_manifest.csv
+
+phase13_encoder_fisher.pt
+
+phase13_predictor_fisher.pt
+
+phase13_fisher_parameter_reference.pt
+
+phase13_fisher_parameter_statistics.csv
+
+phase13_fisher_layer_statistics.csv
+
+phase13_fisher_top_parameters.csv
+
+phase13_consolidated_knowledge_manifest.json
+
+phase13_qc_summary.csv
+
+phase13_qc_summary.json
+```
+
+
+### Encoder Fisher
+
+```text
+phase13_encoder_fisher.pt
+```
+
+contains:
+
+\[
+F_E
+\]
+
+
+### Predictor Fisher
+
+```text
+phase13_predictor_fisher.pt
+```
+
+contains:
+
+\[
+F_P
+\]
+
+
+### EWC Reference
+
+```text
+phase13_fisher_parameter_reference.pt
+```
+
+contains baseline parameter values together with their corresponding Fisher importance values.
+
+
+==================================================
+## 43. PHASE-13 QUALITY CONTROL
+==================================================
+
+The following conditions were verified:
+
+```text
+Fisher reference size = 128                           PASS
+
+Fisher reference is training-only                    PASS
+
+No validation molecules used                         PASS
+
+No test molecules used                               PASS
+
+
+========================
+
 
 ---
 
-# Phase 16 — In-Silico Multi-Objective Evaluation
+# PHASE 14 — LATENT-SPACE CANDIDATE GENERATION AND PROPOSAL POOL CONSTRUCTION
 
-The original pipeline evaluated candidate molecules using drug-likeness, accessibility and a bioactivity-related surrogate. Pasted text
+## OBJECTIVE
 
-That structure remains appropriate.
+Phase 14 begins the first closed-loop discovery cycle.
 
-Each valid candidate can receive:
+The purpose of this phase is to generate genuinely new molecular proposals from the learned latent molecular representation rather than simply selecting existing DrugBank molecules as candidate placeholders.
 
-### Chemical quality
-
-\[
-QED
-\]
-
-### Synthetic accessibility
+The baseline state available before candidate generation is:
 
 \[
-SA
+K_0
+=
+\{
+\Theta^*,
+F_E,
+F_P,
+Z_0
+\}
 \]
 
-### Biological relevance / surrogate score
+where:
 
 \[
-\hat y
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
 \]
 
-### Model uncertainty
+and:
+
+- \(\theta_E^*\) is the frozen baseline molecular encoder.
+- \(\theta_D^*\) is the trained latent-conditioned molecular decoder.
+- \(\theta_P^*\) is the baseline DrugBank-grounded target-association predictor.
+- \(F_E\) and \(F_P\) are the Phase-13 Fisher importance references.
+- \(Z_0\) is the baseline latent molecular representation.
+
+Phase 14 uses the learned latent space and the trained decoder to construct a molecular candidate pool.
+
+The main output is:
+
+\[
+C_t
+=
+\{
+c_1,c_2,\ldots,c_n
+\}
+\]
+
+for closed-loop cycle \(t\).
+
+For the first cycle:
+
+\[
+t=1
+\]
+
+
+==================================================
+## IMPORTANT DISTINCTION
+==================================================
+
+Candidate generation must be distinguished from candidate evaluation.
+
+Phase 14 performs:
+
+```text
+latent proposal generation
+latent perturbation
+latent interpolation
+latent neighborhood exploration
+decoder-based molecular generation
+SELFIES decoding
+chemical validation
+standardization
+deduplication
+baseline-relative novelty checking
+candidate provenance recording
+candidate-pool construction
+```
+
+Phase 14 does not yet perform:
+
+```text
+EWC parameter updates
+encoder adaptation
+predictor adaptation
+Fisher recalculation
+therapeutic optimization
+binding-affinity prediction
+clinical ranking
+parameter drift
+```
+
+Candidate scoring and prioritization may occur in the next evaluation stage.
+
+
+==================================================
+## 1. WHY EXISTING DRUGBANK MOLECULES SHOULD NOT BE THE FINAL CANDIDATE POOL
+==================================================
+
+Existing DrugBank molecules may be useful during early debugging because they provide known valid molecular structures.
+
+However, using existing DrugBank molecules as the final candidate pool would not demonstrate generative exploration.
+
+The final implementation should therefore demonstrate:
+
+\[
+\text{learned latent representation}
+\rightarrow
+\text{new latent proposal}
+\rightarrow
+\theta_D^*
+\rightarrow
+\text{new molecular candidate}
+\]
+
+wherever computationally feasible.
+
+DrugBank molecules remain useful as:
+
+```text
+latent seed molecules
+reference molecules
+novelty comparison corpus
+similarity anchors
+baseline controls
+```
+
+but they should not simply be relabeled as newly generated candidates.
+
+
+==================================================
+## 2. CANDIDATE GENERATION SOURCES
+==================================================
+
+Candidates may originate from several complementary proposal mechanisms.
+
+Recommended mechanisms are:
+
+### A. Latent Perturbation
+
+For baseline latent vector:
+
+\[
+z_i
+\]
+
+generate:
+
+\[
+z_i'
+=
+z_i
++
+\epsilon
+\]
+
+where:
+
+\[
+\epsilon
+\sim
+\mathcal{N}(0,\sigma^2 I)
+\]
+
+Small perturbations explore the local neighborhood around a known molecular representation.
+
+
+### B. Neighborhood Sampling
+
+Generate multiple local samples around selected seed latents:
+
+\[
+z_{i,k}
+=
+z_i
++
+\epsilon_k
+\]
+
+for:
+
+\[
+k=1,\ldots,m
+\]
+
+This provides a local molecular neighborhood for each selected seed.
+
+
+### C. Latent Interpolation
+
+For two baseline latent vectors:
+
+\[
+z_a
+\]
+
+and:
+
+\[
+z_b
+\]
+
+construct:
+
+\[
+z(\alpha)
+=
+(1-\alpha)z_a
++
+\alpha z_b
+\]
+
+with:
+
+\[
+0 < \alpha < 1
+\]
+
+Interpolation explores molecular representations between known regions of latent space.
+
+
+### D. Prior / Latent Sampling
+
+Samples may also be generated from a latent prior such as:
+
+\[
+z
+\sim
+\mathcal{N}(0,I)
+\]
+
+This is more exploratory than local perturbation.
+
+Because the learned latent distribution may not perfectly match the theoretical prior, prior samples should be treated as exploratory proposals rather than automatically assumed to occupy chemically reliable latent regions.
+
+
+### E. Decoder-Driven Stochastic Generation
+
+For a fixed latent vector:
+
+\[
+z
+\]
+
+the decoder may generate multiple molecular sequences using stochastic token sampling.
+
+Thus:
+
+\[
+z
+\rightarrow
+\theta_D^*
+\rightarrow
+c_1,c_2,\ldots,c_m
+\]
+
+The same latent region may therefore yield several different molecular proposals.
+
+
+==================================================
+## 3. RECOMMENDED FIRST-CYCLE GENERATION STRATEGY
+==================================================
+
+For the first closed-loop cycle, the most defensible candidate proposal strategy is a mixture of:
+
+```text
+local latent perturbation
++
+latent interpolation
++
+limited exploratory prior sampling
++
+stochastic decoder sampling
+```
+
+This gives a balance between:
+
+```text
+exploitation of known chemical regions
+and
+exploration of new latent regions
+```
+
+
+==================================================
+## 4. BASELINE LATENT SEEDS
+==================================================
+
+Candidate generation should begin from selected latent vectors in:
+
+\[
+Z_0
+\]
+
+Seed molecules should come only from the baseline corpus.
+
+For each seed record:
+
+```text
+graph_id
+drug_id
+baseline latent vector
+generation method
+generation parameters
+```
+
+Seed selection should be deterministic and reproducible.
+
+A fixed random seed should be used where random sampling is required.
+
+
+==================================================
+## 5. LOCAL LATENT PERTURBATION
+==================================================
+
+For each selected baseline seed:
+
+\[
+z_{\text{seed}}
+\]
+
+generate multiple perturbed vectors:
+
+\[
+z'
+=
+z_{\text{seed}}
++
+\sigma\epsilon
+\]
+
+where:
+
+\[
+\epsilon
+\sim
+\mathcal{N}(0,I)
+\]
+
+The perturbation magnitude:
 
 \[
 \sigma
 \]
 
-Other physicochemical properties can optionally include:
+must be explicitly recorded.
+
+Because Phase 11 showed that larger perturbations produced larger molecular changes than smaller perturbations, Phase 14 should avoid arbitrarily large latent steps.
+
+A practical initial perturbation schedule may contain several controlled values such as:
 
 ```text
-Molecular weight
-LogP
-TPSA
-H-bond donors
-H-bond acceptors
-Rotatable bonds
+small perturbation
+moderate perturbation
+exploratory perturbation
 ```
 
-The important methodological principle is that the feedback engine produces a **multi-objective computational evaluation**, rather than relying on a single property.
+These should be treated as implementation parameters rather than universal scientific constants.
 
+
+==================================================
+## 6. LATENT INTERPOLATION
+==================================================
+
+Selected pairs of baseline latent vectors may be interpolated.
+
+For seed pair:
+
+\[
+(z_a,z_b)
+\]
+
+generate:
+
+\[
+z_\alpha
+=
+(1-\alpha)z_a+\alpha z_b
+\]
+
+for selected interpolation coefficients.
+
+Example:
+
+\[
+\alpha
+\in
+\{
+0.25,
+0.50,
+0.75
+\}
+\]
+
+Interpolation provenance must record:
+
+```text
+source drug A
+source drug B
+alpha
+interpolated latent vector
+```
+
+
+==================================================
+## 7. PRIOR SAMPLING
+==================================================
+
+Exploratory latent samples may be drawn from:
+
+\[
+\mathcal{N}(0,I)
+\]
+
+However, these samples should form only part of the candidate pool.
+
+They should not dominate the first cycle because the learned latent manifold may differ from an ideal standard normal prior.
+
+Prior-generated candidates should therefore be tagged as:
+
+```text
+exploratory_prior
+```
+
+
+==================================================
+## 8. DECODER GENERATION
+==================================================
+
+Every proposed latent vector is passed through the frozen Phase-11 molecular decoder:
+
+\[
+\theta_D^*
+\]
+
+The decoder should remain unchanged in Phase 14.
+
+The generation process is:
+
+```text
+candidate latent vector
+        ↓
+frozen θD*
+        ↓
+SELFIES token generation
+        ↓
+SELFIES sequence
+        ↓
+SMILES
+        ↓
+molecular candidate
+```
+
+Generation may use:
+
+```text
+temperature-controlled sampling
+top-k sampling
+greedy decoding for diagnostics
+```
+
+The exact generation parameters must be recorded.
+
+
+==================================================
+## 9. MULTIPLE MOLECULES PER LATENT
+==================================================
+
+A latent vector does not have to produce only one candidate.
+
+For each proposed latent vector:
+
+\[
+z_i'
+\]
+
+the decoder may generate multiple stochastic sequences:
+
+\[
+c_{i,1},
+c_{i,2},
+\ldots,
+c_{i,m}
+\]
+
+This allows molecular diversity to emerge even within a single latent neighborhood.
+
+
+==================================================
+## 10. SELFIES DECODING
+==================================================
+
+Generated decoder output should first be interpreted as a SELFIES sequence.
+
+The candidate sequence must successfully convert:
+
+\[
+\text{SELFIES}
+\rightarrow
+\text{SMILES}
+\]
+
+Candidates that fail SELFIES decoding should be rejected and recorded as:
+
+```text
+selfies_decode_failure
+```
+
+
+==================================================
+## 11. RDKIT PARSING
+==================================================
+
+Decoded SMILES should be parsed with RDKit.
+
+Recommended sequence:
+
+```text
+SMILES
+↓
+MolFromSmiles(..., sanitize=False)
+↓
+SanitizeMol
+```
+
+Candidates that fail parsing or sanitization must be excluded from the valid candidate set.
+
+
+==================================================
+## 12. CHEMICAL STANDARDIZATION
+==================================================
+
+Successfully parsed candidates should be standardized using the same chemical-standardization principles established earlier.
+
+Recommended steps include:
+
+```text
+RDKit Cleanup
+FragmentParent
+Uncharger
+final sanitization
+canonical SMILES
+```
+
+The standardized canonical SMILES should represent the final candidate identity used for deduplication.
+
+
+==================================================
+## 13. VALENCE VALIDATION
+==================================================
+
+Generated molecules should pass explicit valence/property-cache checks.
+
+Candidates with invalid atomic valence or sanitization errors must not enter the final candidate pool.
+
+
+==================================================
+## 14. MODEL-FEASIBILITY HEAVY-ATOM FILTER
+==================================================
+
+Apply the existing model-feasibility range:
+
+\[
+4
+\le
+\text{heavy atoms}
+\le
+80
+\]
+
+This should continue to be described as:
+
+**model feasibility filtering**
+
+and not as a universal chemical-validity rule.
+
+
+==================================================
+## 15. DUPLICATE REMOVAL
+==================================================
+
+After canonicalization, duplicate molecules must be removed.
+
+Two generated candidates with the same canonical standardized SMILES represent the same molecular candidate.
+
+Therefore retain one candidate identity while preserving generation provenance where useful.
+
+
+==================================================
+## 16. BASELINE-RELATIVE NOVELTY
+==================================================
+
+Novelty should be defined relative to the standardized baseline DrugBank molecular corpus.
+
+For generated candidate:
+
+\[
+c
+\]
+
+define:
+
+```text
+novel = True
+```
+
+when its canonical standardized SMILES is absent from the baseline corpus.
+
+This should be described explicitly as:
+
+**novel relative to the baseline DrugBank molecular corpus**
+
+and not as globally novel chemistry.
+
+
+==================================================
+## 17. GENERATED-CANDIDATE PROVENANCE
+==================================================
+
+Every candidate should preserve its origin.
+
+Recommended provenance fields include:
+
+```text
+candidate_id
+cycle
+generation_method
+seed_graph_id
+seed_drug_id
+second_seed_graph_id if interpolation
+second_seed_drug_id if interpolation
+interpolation_alpha
+perturbation_sigma
+latent_sample_index
+decoder_sample_index
+temperature
+top_k
+generated_SELFIES
+decoded_SMILES
+canonical_SMILES
+validity_status
+novel_vs_baseline
+```
+
+This is particularly important for patent and thesis reproducibility.
+
+
+==================================================
+## 18. CANDIDATE IDENTIFIER
+==================================================
+
+Assign each unique validated candidate a stable identifier.
+
+For example:
+
+```text
+CYCLE01_CAND000001
+CYCLE01_CAND000002
+...
+```
+
+This identifier should be used consistently throughout later:
+
+```text
+evaluation
+ranking
+selection
+feedback
+adaptation
+drift analysis
+```
+
+
+==================================================
+## 19. RAW CANDIDATE POOL
+==================================================
+
+Let:
+
+\[
+C_t^{raw}
+\]
+
+represent all decoder outputs before chemical QC.
+
+This includes:
+
+```text
+valid candidates
+invalid SELFIES
+invalid SMILES
+sanitization failures
+heavy-atom failures
+duplicates
+baseline molecules
+```
+
+
+==================================================
+## 20. VALIDATED CANDIDATE POOL
+==================================================
+
+After SELFIES decoding, parsing, sanitization, standardization, and model-feasibility checks:
+
+\[
+C_t^{valid}
+\]
+
+contains chemically processable candidates under the defined computational QC pipeline.
+
+
+==================================================
+## 21. UNIQUE CANDIDATE POOL
+==================================================
+
+After canonical deduplication:
+
+\[
+C_t^{unique}
+\]
+
+contains unique validated molecular candidates.
+
+
+==================================================
+## 22. NOVEL CANDIDATE POOL
+==================================================
+
+After comparison against the baseline DrugBank corpus:
+
+\[
+C_t^{novel}
+\]
+
+contains unique candidates absent from the baseline molecular corpus.
+
+Therefore:
+
+\[
+C_t^{novel}
+\subseteq
+C_t^{unique}
+\subseteq
+C_t^{valid}
+\subseteq
+C_t^{raw}
+\]
+
+
+==================================================
+## 23. FINAL PHASE-14 CANDIDATE POOL
+==================================================
+
+The final candidate pool used by the next evaluation stage should preferably be:
+
+\[
+C_t
+=
+C_t^{novel}
+\]
+
+or a documented subset of \(C_t^{novel}\) if a maximum pool size is required.
+
+Thus:
+
+\[
+C_t
+=
+\{
+c_1,c_2,\ldots,c_n
+\}
+\]
+
+represents unique, validated, baseline-relative novel molecular proposals generated from the learned latent representation.
+
+
+==================================================
+## 24. GENERATION-DIVERSITY DIAGNOSTICS
+==================================================
+
+Phase 14 should report:
+
+```text
+number of raw generated sequences
+SELFIES decode success rate
+RDKit parse success rate
+sanitization success rate
+standardization success rate
+model-feasibility pass rate
+chemical validity rate
+number of unique candidates
+uniqueness rate
+number novel vs baseline
+novelty rate
+mean fingerprint diversity
+```
+
+These metrics should be reported separately for each generation strategy where practical.
+
+
+==================================================
+## 25. GENERATION METHOD COMPARISON
+==================================================
+
+Recommended method-level reporting:
+
+```text
+latent perturbation
+latent interpolation
+prior sampling
+decoder stochastic resampling
+```
+
+For each method record:
+
+```text
+attempted
+valid
+unique
+novel
+validity %
+uniqueness %
+novelty %
+diversity
+```
+
+This allows later analysis of which proposal mechanism contributes useful candidate diversity.
+
+
+==================================================
+## 26. LATENT-DISTANCE RECORDING
+==================================================
+
+For perturbation-generated candidates record:
+
+\[
+\|z'-z_{\text{seed}}\|_2
+\]
+
+For interpolation-generated candidates record distances to both source latents.
+
+For prior-generated candidates, optionally record distance to the nearest baseline latent representation.
+
+These values can later help investigate whether candidate quality deteriorates far from the baseline latent manifold.
+
+
+==================================================
+## 27. OPTIONAL NEAREST-BASELINE SIMILARITY
+==================================================
+
+For each generated candidate, molecular fingerprint similarity to the nearest baseline molecule may be calculated.
+
+This can help distinguish:
+
+```text
+close analogues
+moderately novel structures
+highly dissimilar proposals
+```
+
+However, similarity should not be interpreted as biological activity.
+
+
+==================================================
+## 28. IMPORTANT ROLE OF PHASE-11 VALIDATION
+==================================================
+
+Phase 11 already demonstrated that the decoder responds measurably to changes in the latent representation.
+
+Therefore Phase 14 is not simply generating arbitrary molecular strings.
+
+It explicitly exploits the learned mapping:
+
+\[
+z
+\rightarrow
+\theta_D^*
+\rightarrow
+\text{molecular sequence}
+\]
+
+to explore molecular neighborhoods and new latent locations.
+
+
+==================================================
+## 29. DECODER REMAINS FROZEN
+==================================================
+
+During Phase 14:
+
+\[
+\theta_D
+=
+\theta_D^*
+\]
+
+The decoder generates candidates but is not trained or updated.
+
+Likewise, candidate generation itself must not alter:
+
+\[
+\theta_E^*
+\]
+
+or:
+
+\[
+\theta_P^*
+\]
+
+
+==================================================
+## 30. NO EWC YET DURING GENERATION
+==================================================
+
+The Fisher information produced in Phase 13 is preserved for later adaptation.
+
+Phase 14 candidate generation alone does not require an EWC penalty because no trainable parameter update occurs.
+
+Thus:
+
+```text
+F_E = unchanged
+F_P = unchanged
+Θ* = unchanged
+K0 = preserved
+```
+
+
+==================================================
+## 31. CANDIDATE GENERATION IS NOT CANDIDATE SELECTION
+==================================================
+
+Generation should produce a sufficiently diverse candidate set before biological relevance or acquisition criteria are applied.
+
+Therefore Phase 14 should not silently remove molecules simply because their current predictor score is low.
+
+Otherwise proposal generation and evaluation become mixed together.
+
+Recommended separation:
+
+```text
+Phase 14
+Generate molecular possibilities
+
+Phase 15
+Evaluate / score / prioritize molecular possibilities
+```
+
+
+==================================================
+## 32. CANDIDATE POOL SIZE
+==================================================
+
+Define a reproducible proposal budget.
+
+For example:
+
+```text
+N_seed
+N_perturbations_per_seed
+N_interpolation_pairs
+N_interpolation_points
+N_prior_latents
+N_decoder_samples_per_latent
+```
+
+The exact numbers are implementation choices and should be explicitly saved in the Phase-14 configuration.
+
+Candidate pool size should be reported both:
+
+```text
+before QC
+and
+after QC
+```
+
+
+==================================================
+## 33. RANDOMNESS AND REPRODUCIBILITY
+==================================================
+
+All random operations should use a fixed seed.
+
+This includes:
+
+```text
+seed molecule selection
+latent perturbation
+latent pair selection
+prior sampling
+decoder token sampling
+```
+
+The seed must be saved in Phase-14 metadata.
+
+
+==================================================
+## 34. RECOMMENDED GENERATION POLICY FOR CYCLE 1
+==================================================
+
+A practical first-cycle proposal policy is:
+
+```text
+Baseline latent seeds Z0
+        ↓
+Local perturbation candidates
++
+Interpolation candidates
++
+Limited prior candidates
+        ↓
+Frozen Phase-11 decoder
+        ↓
+Multiple stochastic molecular proposals
+        ↓
+Chemical QC
+        ↓
+Deduplication
+        ↓
+Baseline-relative novelty
+        ↓
+C1
+```
+
+
+==================================================
+## 35. OUTPUT TABLE DESIGN
+==================================================
+
+Recommended candidate table fields:
+
+```text
+candidate_id
+cycle
+generation_method
+
+seed_graph_id
+seed_drug_id
+
+second_seed_graph_id
+second_seed_drug_id
+
+perturbation_sigma
+interpolation_alpha
+
+latent_source_index
+decoder_sample_index
+
+temperature
+top_k
+
+generated_selfies
+decoded_smiles
+canonical_smiles
+
+selfies_decode_success
+rdkit_parse_success
+sanitize_success
+standardization_success
+heavy_atom_count
+model_feasible
+
+is_valid
+is_unique
+novel_vs_baseline
+
+nearest_baseline_similarity
+latent_distance
+```
+
+
+==================================================
+## 36. RECOMMENDED OUTPUT FILES
+==================================================
+
+Recommended Phase-14 outputs:
+
+```text
+phase14_generation_config.json
+
+phase14_latent_proposals.csv
+
+phase14_generated_candidates_raw.csv
+
+phase14_generated_candidates_validated.csv
+
+phase14_generated_candidates_unique.csv
+
+phase14_generated_candidates_novel.csv
+
+phase14_candidate_provenance.csv
+
+phase14_generation_method_summary.csv
+
+phase14_generation_qc_summary.csv
+
+phase14_generation_qc_summary.json
+```
+
+
+==================================================
+## 37. PHASE-14 QUALITY CONTROL
+==================================================
+
+Verify:
+
+```text
+Phase-12 decoder checkpoint loads
+
+decoder state equals θD*
+
+Z0 loads successfully
+
+latent dimension = 32
+
+all baseline latents finite
+
+random seed fixed
+
+latent perturbations generated
+
+interpolation proposals generated
+
+prior samples generated
+
+all latent proposal vectors finite
+
+decoder generates SELFIES sequences
+
+SELFIES decoding checked
+
+RDKit parsing checked
+
+sanitization checked
+
+standardization checked
+
+valence/property-cache validation checked
+
+heavy-atom feasibility checked
+
+canonical deduplication performed
+
+baseline-relative novelty calculated
+
+candidate provenance saved
+
+generation-method provenance preserved
+
+θE* unchanged
+
+θD* unchanged
+
+θP* unchanged
+
+no optimizer update
+
+no EWC
+
+no closed-loop model adaptation
+```
+
+
+==================================================
+## 38. PHASE-14 COMPLETION CRITERIA
+==================================================
+
+Phase 14 is complete when:
+
+1. The frozen baseline state is loaded.
+
+2. The Phase-11 molecular decoder matches \(\theta_D^*\).
+
+3. \(Z_0\) is loaded.
+
+4. Latent dimensionality remains 32.
+
+5. Seed latent vectors are selected reproducibly.
+
+6. Local latent perturbation proposals are created.
+
+7. Interpolation proposals are created.
+
+8. Limited exploratory latent-prior samples are created.
+
+9. All proposed latent vectors are finite.
+
+10. Proposed latents are passed through the frozen generative decoder.
+
+11. Molecular SELFIES sequences are produced.
+
+12. SELFIES-to-SMILES decoding is performed.
+
+13. RDKit parsing is performed.
+
+14. Sanitization is performed.
+
+15. Standardization is performed.
+
+16. Valence checks are performed.
+
+17. Model-feasibility filtering is performed.
+
+18. Valid candidates are identified.
+
+19. Canonical duplicates are removed.
+
+20. Novelty against the baseline DrugBank corpus is calculated.
+
+21. Candidate provenance is retained.
+
+22. Generation-method statistics are calculated.
+
+23. Candidate diversity is calculated.
+
+24. A final unique validated candidate pool is produced.
+
+25. A baseline-relative novel candidate pool is produced.
+
+26. \(\theta_E^*\) remains unchanged.
+
+27. \(\theta_D^*\) remains unchanged.
+
+28. \(\theta_P^*\) remains unchanged.
+
+29. No EWC occurs.
+
+30. No parameter adaptation occurs.
+
+
+==================================================
+## 39. SCIENTIFIC INTERPRETATION
+==================================================
+
+After successful Phase 14 it is appropriate to state:
+
+> “Molecular candidates were generated from the learned molecular latent representation using local perturbation, latent interpolation, exploratory prior sampling, and stochastic decoding.”
+
+It is also appropriate to state:
+
+> “Generated candidates were subjected to SELFIES decoding, RDKit parsing, sanitization, standardization, model-feasibility filtering, canonical deduplication, and baseline-relative novelty assessment.”
+
+It is also appropriate to state:
+
+> “The resulting candidate pool contains computational molecular proposals generated by the frozen baseline molecular decoder.”
+
+
+==================================================
+## 40. CLAIMS THAT SHOULD NOT YET BE MADE
+==================================================
+
+Do not yet claim:
+
+```text
+generated molecules are active drugs
+
+generated molecules bind a particular target
+
+generated molecules have improved affinity
+
+generated molecules are therapeutically superior
+
+generated molecules are safe
+
+generated molecules are synthesizable
+
+candidate generation improved the model
+
+EWC prevented forgetting
+
+the model has self-evolved
+```
+
+Those require later evaluation and adaptation stages.
+
+
+==================================================
+## FINAL PHASE-14 WORKFLOW
+==================================================
+
+```text
+Consolidated Baseline Knowledge State K0
+        ↓
+Fixed Baseline Latent Representation Z0
+        ↓
+Select Reproducible Seed Latents
+        ↓
+┌──────────────────────────────────────────────┐
+│ Candidate Latent Proposal Mechanisms         │
+│                                              │
+│ 1. Local Latent Perturbation                 │
+│ 2. Neighborhood Sampling                     │
+│ 3. Latent Interpolation                      │
+│ 4. Limited Prior Sampling                    │
+│ 5. Decoder Stochastic Resampling             │
+└──────────────────────────────────────────────┘
+        ↓
+Candidate Latent Set
+        ↓
+Frozen Molecular Decoder θD*
+        ↓
+Generated SELFIES
+        ↓
+SELFIES → SMILES
+        ↓
+RDKit Parsing
+        ↓
+Sanitization / Valence Validation
+        ↓
+Chemical Standardization
+        ↓
+Model-Feasibility Filtering
+        ↓
+Canonical Deduplication
+        ↓
+Baseline-Relative Novelty Assessment
+        ↓
+Generation Provenance
+        ↓
+Candidate Pool
+
+C_t
+=
+{
+c_1,c_2,\ldots,c_n
+}
+```
+
+## NEXT PHASE
+-------------
+==================
+# PHASE 15 — CHEMICAL ELIGIBILITY AND PRE-EVALUATION SCREENING
+
+
+## OBJECTIVE
+
+Phase 15 performs a formal chemical eligibility and pre-evaluation screening of the molecular candidates generated during Phase 14.
+
+The Phase-14 candidate hierarchy is:
+
+\[
+C_1^{raw}
+\supseteq
+C_1^{valid}
+\supseteq
+C_1^{unique}
+\supseteq
+C_1^{novel}
+\]
+
+The principal input to Phase 15 is:
+
+\[
+C_1^{novel}
+\]
+
+which contains unique, chemically valid, baseline-relative novel molecular proposals generated from the learned latent representation.
+
+Phase 15 determines which of these molecules are sufficiently well-formed and physicochemically characterized to enter the later in-silico biological evaluation engine.
+
+The principal Phase-15 output is:
+
+\[
+C_1^{eligible}
+\]
+
+where:
+
+\[
+C_1^{eligible}
+\subseteq
+C_1^{novel}
+\]
+
+Candidates failing strict structural or numerical eligibility requirements are placed in:
+
+\[
+C_1^{ineligible}
+\]
+
+
+==================================================
+## IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 15 performs:
+
+```text
+chemical eligibility screening
+structural integrity verification
+fragment checking
+molecular-size verification
+physicochemical descriptor calculation
+descriptor finiteness checking
+soft drug-likeness characterization
+candidate eligibility classification
+audit logging
+```
+
+Phase 15 does **not** perform:
+
+```text
+biological target-association scoring
+binding-affinity prediction
+therapeutic efficacy prediction
+candidate utility ranking
+UCB acquisition
+EWC
+model parameter updates
+closed-loop adaptation
+```
+
+Therefore:
+
+\[
+\text{chemical eligibility}
+\neq
+\text{biological efficacy}
+\]
+
+
+==================================================
+## 1. INPUT CANDIDATE POOL
+==================================================
+
+Load the finalized Phase-14 novel candidate pool:
+
+\[
+C_1^{novel}
+\]
+
+Candidate identifiers and canonical molecular representations established in Phase 14 must be preserved.
+
+Phase 15 should not generate new molecules.
+
+It only evaluates the eligibility of existing Phase-14 candidates.
+
+
+==================================================
+## 2. PRESERVE PHASE-14 MOLECULAR IDENTITY
+==================================================
+
+The Phase-14 standardized canonical SMILES should remain the authoritative candidate identity.
+
+Phase 15 should:
+
+```text
+load canonical SMILES
+↓
+reparse with RDKit
+↓
+verify chemical integrity
+↓
+calculate descriptors
+```
+
+Phase 15 should not silently perform a new independent standardization procedure that changes candidate identity.
+
+This ensures that:
+
+\[
+candidate\_id
+\leftrightarrow
+canonical\_smiles
+\]
+
+remains stable across pipeline phases.
+
+
+==================================================
+## 3. CANDIDATE HIERARCHY
+==================================================
+
+The complete candidate hierarchy becomes:
+
+\[
+C_1^{eligible}
+\subseteq
+C_1^{novel}
+\subseteq
+C_1^{unique}
+\subseteq
+C_1^{valid}
+\subseteq
+C_1^{raw}
+\]
+
+This ensures that only genuinely generated, unique, baseline-relative novel candidates proceed into downstream evaluation.
+
+
+==================================================
+## 4. WHY PHASE 15 IS REQUIRED
+==================================================
+
+A molecule may be syntactically valid but still be unsuitable for downstream computational evaluation.
+
+For example, a candidate may have:
+
+```text
+unusual molecular size
+extreme lipophilicity
+extreme polarity
+large formal charge
+excessive flexibility
+disconnected fragments
+non-finite descriptor values
+```
+
+Therefore:
+
+\[
+valid
+\neq
+evaluation-ready
+\]
+
+Phase 15 provides an explicit eligibility gate before biological scoring.
+
+
+==================================================
+## 5. STRUCTURAL VALIDITY RECONFIRMATION
+==================================================
+
+For every Phase-14 novel candidate, reconfirm:
+
+```text
+canonical SMILES present
+RDKit parsing successful
+RDKit sanitization successful
+property-cache update successful
+valence representation valid
+molecule contains atoms
+```
+
+These checks verify that no malformed candidate enters later evaluation.
+
+
+==================================================
+## 6. UNIQUENESS RECONFIRMATION
+==================================================
+
+Verify that standardized canonical SMILES remain unique.
+
+For candidates:
+
+\[
+c_i
+\]
+
+and:
+
+\[
+c_j
+\]
+
+require:
+
+\[
+SMILES_{canonical}(c_i)
+\neq
+SMILES_{canonical}(c_j)
+\]
+
+for:
+
+\[
+i\neq j
+\]
+
+Duplicate identities should not be evaluated as separate candidates.
+
+
+==================================================
+## 7. BASELINE-RELATIVE NOVELTY RECONFIRMATION
+==================================================
+
+Retain the Phase-14 novelty definition.
+
+Candidate:
+
+\[
+c_i
+\]
+
+is considered novel when its standardized canonical SMILES is absent from the baseline DrugBank molecular corpus.
+
+Thus:
+
+\[
+c_i
+\notin
+D_{baseline}
+\]
+
+The terminology must remain:
+
+**novel relative to the baseline DrugBank corpus**
+
+and not:
+
+**globally novel molecule**.
+
+
+==================================================
+## 8. HARD ELIGIBILITY RULES
+==================================================
+
+A candidate should be classified as chemically ineligible only for strict structural or numerical failure modes.
+
+Recommended hard rejection conditions are:
+
+```text
+RDKit parse failure
+
+sanitization failure
+
+property-cache / valence failure
+
+empty molecular structure
+
+missing canonical SMILES
+
+disconnected fragments remaining after Phase-14 standardization
+
+non-finite required descriptor values
+
+heavy atom count outside 4–80
+```
+
+These are eligibility failures rather than biological judgments.
+
+
+==================================================
+## 9. DISCONNECTED FRAGMENT CHECK
+==================================================
+
+For each candidate calculate:
+
+\[
+N_{fragments}
+\]
+
+using the authoritative Phase-14 canonical molecular representation.
+
+Require:
+
+\[
+N_{fragments}=1
+\]
+
+for chemical eligibility.
+
+If:
+
+\[
+N_{fragments}>1
+\]
+
+the candidate should be excluded and recorded as:
+
+```text
+disconnected_fragments
+```
+
+Because Phase 14 used fragment-parent standardization, such cases should normally be uncommon.
+
+
+==================================================
+## 10. MODEL-FEASIBILITY HEAVY-ATOM RANGE
+==================================================
+
+Retain the previously established model-feasibility requirement:
+
+\[
+4
+\le
+N_{heavy}
+\le
+80
+\]
+
+Candidates outside this interval are excluded from downstream evaluation.
+
+This remains a:
+
+**MODEL-FEASIBILITY CONSTRAINT**
+
+and must not be presented as a universal definition of chemical validity.
+
+
+==================================================
+## 11. PHYSICOCHEMICAL DESCRIPTOR SET
+==================================================
+
+For each candidate calculate the following core descriptors:
+
+```text
+molecular weight
+heavy atom count
+cLogP
+topological polar surface area
+hydrogen-bond donors
+hydrogen-bond acceptors
+rotatable bonds
+formal charge
+ring count
+aromatic ring count
+fraction Csp3
+```
+
+These descriptors provide a standardized chemical profile for subsequent candidate evaluation.
+
+
+==================================================
+## 12. MOLECULAR WEIGHT
+==================================================
+
+Calculate:
+
+\[
+MW(c_i)
+\]
+
+using molecular weight in:
+
+\[
+g/mol
+\]
+
+Recommended implementation:
+
+```text
+RDKit Descriptors.MolWt
+```
+
+Molecular weight is stored as a continuous descriptor.
+
+It is not by itself a hard rejection criterion unless explicitly required by a later methodology.
+
+
+==================================================
+## 13. HEAVY ATOM COUNT
+==================================================
+
+Calculate:
+
+\[
+N_{heavy}
+\]
+
+using:
+
+```text
+Mol.GetNumHeavyAtoms()
+```
+
+This descriptor is also used for the established model-feasibility constraint:
+
+\[
+4
+\le
+N_{heavy}
+\le
+80
+\]
+
+
+==================================================
+## 14. cLogP
+==================================================
+
+Calculate molecular lipophilicity using Wildman-Crippen LogP:
+
+\[
+cLogP(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Crippen.MolLogP
+```
+
+cLogP is retained as a continuous descriptor.
+
+Extreme values may be flagged but should not automatically invalidate an otherwise structurally sound molecule.
+
+
+==================================================
+## 15. TOPOLOGICAL POLAR SURFACE AREA
+==================================================
+
+Calculate:
+
+\[
+TPSA(c_i)
+\]
+
+Recommended implementation:
+
+```text
+rdMolDescriptors.CalcTPSA
+```
+
+TPSA characterizes molecular polarity.
+
+It is used as a physicochemical descriptor rather than evidence of biological activity.
+
+
+==================================================
+## 16. HYDROGEN-BOND DONORS
+==================================================
+
+Calculate:
+
+\[
+HBD(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Lipinski.NumHDonors
+```
+
+or the corresponding RDKit hydrogen-bond donor function available in the environment.
+
+
+==================================================
+## 17. HYDROGEN-BOND ACCEPTORS
+==================================================
+
+Calculate:
+
+\[
+HBA(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Lipinski.NumHAcceptors
+```
+
+or the corresponding RDKit hydrogen-bond acceptor function available in the environment.
+
+
+==================================================
+## 18. ROTATABLE BONDS
+==================================================
+
+Calculate:
+
+\[
+N_{rot}(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Lipinski.NumRotatableBonds
+```
+
+This provides a measure of molecular flexibility.
+
+
+==================================================
+## 19. FORMAL CHARGE
+==================================================
+
+Calculate total molecular formal charge:
+
+\[
+Q_{formal}(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Chem.GetFormalCharge
+```
+
+Large absolute charge values may generate a soft physicochemical flag.
+
+They should not automatically imply biological failure.
+
+
+==================================================
+## 20. RING COUNT
+==================================================
+
+Calculate:
+
+\[
+N_{rings}(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Lipinski.RingCount
+```
+
+This provides a basic measure of molecular cyclic complexity.
+
+
+==================================================
+## 21. AROMATIC RING COUNT
+==================================================
+
+Calculate:
+
+\[
+N_{aromatic}(c_i)
+\]
+
+using the corresponding RDKit aromatic-ring descriptor.
+
+This provides additional structural characterization.
+
+
+==================================================
+## 22. FRACTION CSP3
+==================================================
+
+Calculate:
+
+\[
+F_{sp3}(c_i)
+\]
+
+Recommended implementation:
+
+```text
+Lipinski.FractionCSP3
+```
+
+Fraction Csp3 characterizes molecular saturation and three-dimensional carbon character.
+
+It is descriptive and should not be interpreted directly as therapeutic quality.
+
+
+==================================================
+## 23. DESCRIPTOR FINITENESS
+==================================================
+
+All required descriptor values must be finite.
+
+Require:
+
+```text
+no NaN
+
+no +infinity
+
+no -infinity
+```
+
+Formally:
+
+\[
+descriptor(c_i)
+\in
+\mathbb{R}
+\]
+
+for every required descriptor.
+
+A candidate with a non-finite critical descriptor is excluded from:
+
+\[
+C_1^{eligible}
+\]
+
+
+==================================================
+## 24. LIPINSKI RULE-OF-FIVE CHARACTERIZATION
+==================================================
+
+Calculate a conventional Lipinski Rule-of-Five violation count using:
+
+\[
+MW>500
+\]
+
+\[
+cLogP>5
+\]
+
+\[
+HBD>5
+\]
+
+\[
+HBA>10
+\]
+
+For every candidate define:
+
+\[
+N_{LipinskiViolations}
+\]
+
+as the number of violated conditions.
+
+Recommended fields:
+
+```text
+lipinski_violation_count
+
+lipinski_soft_flag
+```
+
+The soft flag may be defined as:
+
+```text
+lipinski_soft_flag = True
+if lipinski_violation_count > 1
+```
+
+However, Lipinski violations remain:
+
+**SOFT PHYSICOCHEMICAL FLAGS**
+
+They are not hard Phase-15 exclusion criteria.
+
+
+==================================================
+## 25. HARD EXCLUSION VS SOFT FLAGGING
+==================================================
+
+Phase 15 explicitly separates:
+
+### HARD ELIGIBILITY FAILURES
+
+```text
+invalid canonical representation
+RDKit parse failure
+sanitization failure
+valence failure
+disconnected molecular fragments
+heavy atoms outside 4–80
+non-finite descriptors
+```
+
+These prevent entry into:
+
+\[
+C_1^{eligible}
+\]
+
+
+### SOFT PHYSICOCHEMICAL FLAGS
+
+```text
+high molecular weight
+high cLogP
+high TPSA
+high HBD
+high HBA
+many rotatable bonds
+large absolute formal charge
+multiple Lipinski violations
+```
+
+Soft flags remain attached to the candidate but do not automatically cause exclusion.
+
+
+==================================================
+## 26. WHY SOFT FLAGS ARE IMPORTANT
+==================================================
+
+The molecular generator is intended to explore chemical space.
+
+Overly aggressive rule-based exclusion could remove potentially interesting candidates before biological scoring.
+
+Therefore the preferred strategy is:
+
+\[
+strict\ structural\ validity
++
+soft\ physicochemical\ characterization
+\]
+
+rather than:
+
+\[
+broad\ heuristic\ rejection
+\]
+
+
+==================================================
+## 27. QED
+==================================================
+
+Calculate:
+
+\[
+QED(c_i)
+\]
+
+for every structurally eligible candidate.
+
+QED may be stored using the standard RDKit QED implementation.
+
+QED is treated as a:
+
+**passive computational molecular descriptor**
+
+during Phase 15.
+
+It may later contribute to candidate prioritization in Phase 16.
+
+However:
+
+\[
+QED
+\neq
+biological\ activity
+\]
+
+\[
+QED
+\neq
+therapeutic\ efficacy
+\]
+
+\[
+QED
+\neq
+experimental\ validation
+\]
+
+
+==================================================
+## 28. SYNTHETIC ACCESSIBILITY SCORE
+==================================================
+
+Synthetic accessibility may also be calculated as:
+
+\[
+SA(c_i)
+\]
+
+if a standard and explicitly identifiable SA-score implementation is available in the computational environment.
+
+The preferred policy is:
+
+```text
+if standard SA scorer available:
+    calculate SA
+    record implementation/source
+    store score
+
+otherwise:
+    do not invent or substitute an undocumented SA approximation
+```
+
+SA is treated as a passive numerical descriptor.
+
+It should not be described as experimental proof that a molecule can or cannot be synthesized.
+
+
+==================================================
+## 29. QED AND SA PLACEMENT
+==================================================
+
+QED and SA may be calculated at the end of Phase 15 so that Phase 16 can directly use them during multi-objective candidate prioritization.
+
+Thus Phase 15 may produce:
+
+\[
+QED(c_i)
+\]
+
+and:
+
+\[
+SA(c_i)
+\]
+
+without yet combining them into a final candidate score.
+
+Their integration into acquisition or utility scoring belongs to the later evaluation phase.
+
+
+==================================================
+## 30. OPTIONAL STRUCTURAL ALERTS
+==================================================
+
+Optional structural-alert screening may include:
+
+```text
+PAINS alerts
+reactive-substructure alerts
+undesirable-substructure alerts
+```
+
+If implemented, these should normally be recorded as:
+
+**structural alert flags**
+
+rather than unconditional proof that a candidate is invalid.
+
+The exact alert library and implementation should be documented.
+
+
+==================================================
+## 31. CHEMICAL ELIGIBILITY DEFINITION
+==================================================
+
+For candidate:
+
+\[
+c_i
+\]
+
+define:
+
+\[
+E_i
+\]
+
+as the hard-exclusion indicator.
+
+If any hard eligibility condition fails:
+
+\[
+E_i=1
+\]
+
+Otherwise:
+
+\[
+E_i=0
+\]
+
+Then define:
+
+\[
+eligible(c_i)
+=
+1-E_i
+\]
+
+The Phase-15 eligible pool is:
+
+\[
+C_1^{eligible}
+=
+\{
+c_i\in C_1^{novel}
+:
+eligible(c_i)=1
+\}
+\]
+
+
+==================================================
+## 32. INELIGIBLE CANDIDATE POOL
+==================================================
+
+Candidates failing one or more hard eligibility rules are assigned to:
+
+\[
+C_1^{ineligible}
+\]
+
+Every ineligible molecule must preserve:
+
+```text
+candidate_id
+canonical_smiles
+rejection status
+rejection reason
+all successfully calculated descriptors
+generation provenance
+```
+
+No candidate should be silently deleted.
+
+
+==================================================
+## 33. REJECTION REASONS
+==================================================
+
+Recommended rejection categories:
+
+```text
+missing_canonical_smiles
+
+rdkit_parse_failure
+
+sanitize_failure
+
+valence_failure
+
+empty_molecule
+
+disconnected_fragments
+
+outside_model_feasibility
+
+non_finite_descriptor
+```
+
+If multiple failures occur, preserve all relevant failure reasons where practical.
+
+
+==================================================
+## 34. CANDIDATE SCREENING TABLE
+==================================================
+
+The comprehensive Phase-15 screening table should contain at minimum:
+
+```text
+candidate_id
+cycle
+canonical_smiles
+
+generation_method
+latent_proposal_id
+
+rdkit_valid
+sanitize_valid
+valence_valid
+
+fragment_count
+single_fragment
+
+heavy_atom_count
+mw
+clogp
+tpsa
+hbd
+hba
+rotatable_bonds
+formal_charge
+ring_count
+aromatic_ring_count
+fraction_csp3
+
+lipinski_violation_count
+lipinski_soft_flag
+
+qed
+
+sa_score
+sa_score_available
+
+descriptor_finite
+
+hard_exclusion
+hard_exclusion_reason
+
+soft_flag_count
+soft_flags
+
+chemical_eligible
+```
+
+
+==================================================
+## 35. SOFT PHYSICOCHEMICAL FLAG TABLE
+==================================================
+
+Optional soft flags may include:
+
+```text
+high_mw
+
+high_clogp
+
+high_tpsa
+
+high_hbd
+
+high_hba
+
+high_rotatable_bonds
+
+large_absolute_formal_charge
+
+multiple_lipinski_violations
+```
+
+These should be stored for later interpretation.
+
+They should not automatically remove a structurally valid molecule from the candidate pool.
+
+
+==================================================
+## 36. COUNT CONSERVATION
+==================================================
+
+An essential Phase-15 QC requirement is:
+
+\[
+N_{input}
+=
+N_{eligible}
++
+N_{ineligible}
+\]
+
+Therefore:
+
+\[
+|C_1^{novel}|
+=
+|C_1^{eligible}|
++
+|C_1^{ineligible}|
+\]
+
+Every input candidate must be represented exactly once in the final eligibility classification.
+
+
+==================================================
+## 37. DESCRIPTOR DISTRIBUTION STATISTICS
+==================================================
+
+For continuous physicochemical descriptors report:
+
+```text
+minimum
+25th percentile
+median
+mean
+75th percentile
+maximum
+standard deviation
+```
+
+Recommended descriptors include:
+
+```text
+mw
+heavy_atom_count
+clogp
+tpsa
+hbd
+hba
+rotatable_bonds
+formal_charge
+ring_count
+aromatic_ring_count
+fraction_csp3
+qed
+sa_score if available
+```
+
+
+==================================================
+## 38. SCREENING STATISTICS
+==================================================
+
+Report:
+
+```text
+input candidate count
+
+RDKit-valid count
+
+sanitization-valid count
+
+valence-valid count
+
+single-fragment count
+
+model-feasible count
+
+finite-descriptor count
+
+eligible candidate count
+
+ineligible candidate count
+
+eligibility rate
+```
+
+Also report rejection counts by reason.
+
+
+==================================================
+## 39. RECOMMENDED OUTPUT FILES
+==================================================
+
+Recommended Phase-15 files:
+
+```text
+phase15_screening_config.json
+
+phase15_candidate_eligibility_screen.csv
+
+phase15_eligible_candidates.csv
+
+phase15_ineligible_candidates.csv
+
+phase15_descriptor_statistics.csv
+
+phase15_exclusion_summary.csv
+
+phase15_eligibility_qc_summary.csv
+
+phase15_eligibility_qc_summary.json
+```
+
+
+==================================================
+## 40. ELIGIBLE CANDIDATE FILE
+==================================================
+
+The main Phase-15 output is:
+
+```text
+phase15_eligible_candidates.csv
+```
+
+representing:
+
+\[
+C_1^{eligible}
+\]
+
+This file should retain:
+
+```text
+candidate identity
+generation provenance
+canonical SMILES
+chemical descriptors
+soft flags
+QED
+SA if available
+```
+
+This becomes the principal input to Phase 16.
+
+
+==================================================
+## 41. INELIGIBLE CANDIDATE FILE
+==================================================
+
+The file:
+
+```text
+phase15_ineligible_candidates.csv
+```
+
+represents:
+
+\[
+C_1^{ineligible}
+\]
+
+Each row must retain the candidate identity and explicit exclusion reason.
+
+
+==================================================
+## 42. BASELINE KNOWLEDGE-STATE PRESERVATION
+==================================================
+
+Phase 15 performs no model training.
+
+Therefore:
+
+\[
+\theta_E^*
+\]
+
+remains unchanged.
+
+\[
+\theta_D^*
+\]
+
+remains unchanged.
+
+\[
+\theta_P^*
+\]
+
+remains unchanged.
+
+Likewise:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+remain unchanged.
+
+Therefore the consolidated baseline knowledge state:
+
+\[
+K_0
+\]
+
+is preserved throughout Phase 15.
+
+
+==================================================
+## 43. NO EWC IN PHASE 15
+==================================================
+
+Because no parameter optimization occurs:
+
+```text
+optimizer created = False
+
+optimizer step = False
+
+EWC applied = False
+
+model adaptation = False
+```
+
+The Fisher information remains stored for later continual-learning adaptation.
+
+
+==================================================
+## 44. NO BIOLOGICAL SCORING IN PHASE 15
+==================================================
+
+Phase 15 does not use:
+
+\[
+\theta_P^*
+\]
+
+to rank candidates biologically.
+
+The baseline target-association predictor remains unchanged.
+
+Biological relevance scoring belongs to Phase 16.
+
+
+==================================================
+## 45. PHASE-15 QUALITY CONTROL
+==================================================
+
+Verify:
+
+```text
+C1_novel loaded successfully
+
+candidate count recorded
+
+candidate IDs preserved
+
+canonical molecular identities preserved
+
+candidate uniqueness preserved
+
+baseline-relative novelty preserved
+
+RDKit parsing verified
+
+sanitization verified
+
+valence verified
+
+fragment count calculated
+
+single-fragment integrity checked
+
+heavy atom count calculated
+
+4–80 heavy atom feasibility applied
+
+molecular weight calculated
+
+cLogP calculated
+
+TPSA calculated
+
+HBD calculated
+
+HBA calculated
+
+rotatable bonds calculated
+
+formal charge calculated
+
+ring count calculated
+
+aromatic ring count calculated
+
+fraction Csp3 calculated
+
+Lipinski violation count calculated
+
+Lipinski soft flag calculated
+
+QED calculated
+
+SA calculated if standard implementation available
+
+all required descriptors checked for finiteness
+
+hard exclusions explicitly recorded
+
+soft flags explicitly recorded
+
+eligible pool created
+
+ineligible pool created
+
+candidate counts conserved
+
+θE* unchanged
+
+θD* unchanged
+
+θP* unchanged
+
+F_E unchanged
+
+F_P unchanged
+
+no optimizer update
+
+no EWC
+
+no biological ranking
+
+no closed-loop adaptation
+```
+
+
+==================================================
+## 46. COMPLETION CRITERIA
+==================================================
+
+Phase 15 is complete when:
+
+1. The finalized Phase-14 novel candidate pool is loaded.
+
+2. Candidate IDs are preserved.
+
+3. Canonical molecular identities are preserved.
+
+4. Candidate uniqueness remains valid.
+
+5. Baseline-relative novelty remains valid.
+
+6. RDKit parsing is verified.
+
+7. Sanitization is verified.
+
+8. Property-cache and valence checks are performed.
+
+9. Fragment count is calculated.
+
+10. Single-fragment integrity is verified.
+
+11. Heavy atom count is calculated.
+
+12. Heavy atom feasibility 4–80 is applied.
+
+13. Molecular weight is calculated.
+
+14. cLogP is calculated.
+
+15. TPSA is calculated.
+
+16. Hydrogen-bond donors are calculated.
+
+17. Hydrogen-bond acceptors are calculated.
+
+18. Rotatable bonds are calculated.
+
+19. Formal charge is calculated.
+
+20. Ring count is calculated.
+
+21. Aromatic ring count is calculated.
+
+22. Fraction Csp3 is calculated.
+
+23. Lipinski violation count is calculated.
+
+24. Lipinski soft flag is calculated.
+
+25. QED is calculated.
+
+26. SA is calculated if the standard implementation is available.
+
+27. All required descriptor values are finite.
+
+28. Hard-exclusion rules are applied.
+
+29. Soft physicochemical flags are retained.
+
+30. All rejection reasons are recorded.
+
+31. \(C_1^{eligible}\) is constructed.
+
+32. \(C_1^{ineligible}\) is constructed.
+
+33. Input candidate count is conserved.
+
+34. Descriptor distributions are summarized.
+
+35. Baseline parameter checkpoints remain unchanged.
+
+36. Fisher references remain unchanged.
+
+37. No optimizer update occurs.
+
+38. No EWC occurs.
+
+39. No biological ranking occurs.
+
+40. No closed-loop model adaptation occurs.
+
+
+==================================================
+## 47. APPROPRIATE TERMINOLOGY AFTER PHASE 15
+==================================================
+
+It is appropriate to state:
+
+> “Generated molecular candidates were subjected to an auditable chemical eligibility screen based on structural validity, valence correctness, fragment integrity, model-feasibility constraints, descriptor finiteness, and physicochemical characterization.”
+
+
+It is appropriate to state:
+
+> “Candidates satisfying the predefined hard structural eligibility criteria were retained as the chemically eligible pool for subsequent in-silico biological evaluation.”
+
+
+It is appropriate to state:
+
+> “Lipinski-style properties, QED, and other physicochemical descriptors were retained as descriptive or soft prioritization features rather than interpreted as evidence of biological efficacy.”
+
+
+If SA was calculated, it is appropriate to state:
+
+> “A computational synthetic-accessibility score was retained as a heuristic descriptor for subsequent candidate prioritization.”
+
+
+==================================================
+## 48. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+```text
+“The eligible candidates are active drugs.”
+
+“The eligible candidates bind the biological target.”
+
+“The candidates have improved binding affinity.”
+
+“The candidates are therapeutically effective.”
+
+“The candidates are clinically safe.”
+
+“The SA score proves synthesizability.”
+
+“QED proves pharmacological efficacy.”
+
+“Lipinski compliance proves drug efficacy.”
+
+“The model has improved.”
+
+“EWC prevented forgetting.”
+
+“The system has self-evolved.”
+```
+
+
+==================================================
+## FINAL PHASE-15 WORKFLOW
+==================================================
+
+```text
+Finalized Phase-14 Candidate Pool
+
+C1_novel
+        ↓
+Preserve Candidate ID
++
+Preserve Phase-14 Canonical SMILES
+        ↓
+RDKit Reparsing
+        ↓
+Sanitization Verification
+        ↓
+Property Cache / Valence Verification
+        ↓
+Fragment Count
+        ↓
+Require Single Molecular Entity
+        ↓
+Heavy Atom Count
+        ↓
+Require 4–80 Heavy Atoms
+        ↓
+Calculate Core Physicochemical Descriptors
+        │
+        ├── Molecular Weight
+        ├── cLogP
+        ├── TPSA
+        ├── HBD
+        ├── HBA
+        ├── Rotatable Bonds
+        ├── Formal Charge
+        ├── Ring Count
+        ├── Aromatic Ring Count
+        └── Fraction Csp3
+        ↓
+Descriptor Finiteness Check
+        ↓
+Lipinski Violation Count
+        ↓
+Lipinski Soft Flag
+        ↓
+QED
+        ↓
+SA Score
+(if standard implementation available)
+        ↓
+Hard Structural Eligibility Rules
+        +
+Soft Physicochemical Characterization
+        ↓
+┌──────────────────────────────────────┐
+│                                      │
+↓                                      ↓
+
+C1_eligible                       C1_ineligible
+
+        ↓
+Chemically Eligible Candidate Pool
+        ↓
+Proceed to Phase 16
+```
+
+
+==================================================
+## NEXT PHASE
+==================================================
+
+# PHASE 16 — IN-SILICO CANDIDATE EVALUATION, UTILITY SCORING, AND PRIORITIZATION
+
+Phase 16 will operate on:
+
+\[
+C_1^{eligible}
+\]
+
+and may incorporate:
+
+```text
+DrugBank-grounded target-association relevance
+QED
+SA score
+predictive uncertainty
+UCB-style acquisition
+multi-objective candidate utility
+candidate ranking
+candidate selection for feedback
+```
+
+while maintaining clear separation between computational prioritization and experimentally verified pharmacological activity.
+
+
+
+=====================
+
+---
+
+# PHASE 16 — IN-SILICO MULTI-OBJECTIVE CANDIDATE EVALUATION, UNCERTAINTY ESTIMATION, AND PRIORITIZATION
+
+
+## OBJECTIVE
+
+Phase 16 performs computational multi-objective evaluation and prioritization of the chemically eligible molecular candidates produced in Phase 15.
+
+Phase 15 established the chemically eligible Cycle-1 candidate pool:
+
+\[
+C_1^{eligible}
+\]
+
+with the hierarchy:
+
+\[
+C_1^{eligible}
+\subseteq
+C_1^{novel}
+\subseteq
+C_1^{unique}
+\subseteq
+C_1^{valid}
+\subseteq
+C_1^{raw}
+\]
+
+For the finalized Cycle-1 implementation:
+
+\[
+|C_1^{eligible}| = 843
+\]
+
+Phase 16 evaluates these candidates using multiple computational objectives representing:
+
+```text
+chemical quality
+synthetic accessibility
+DrugBank-grounded biological target-association relevance
+predictive uncertainty
+physicochemical context
+```
+
+The purpose of this phase is to generate an auditable computational prioritization of candidate molecules before any model adaptation occurs.
+
+The resulting rankings may later support feedback-candidate selection and EWC-regularized closed-loop adaptation.
+
+
+==================================================
+## IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 16 performs:
+
+```text
+candidate molecular graph construction
+
+3D conformer generation
+
+candidate re-encoding
+
+continuous target-association prediction
+
+predictive uncertainty estimation
+
+chemical-quality integration
+
+synthetic-accessibility integration
+
+UCB-style acquisition calculation
+
+multi-objective utility calculation
+
+Pareto analysis
+
+candidate ranking
+
+candidate prioritization
+
+future feedback-set identification
+```
+
+Phase 16 does **not** perform:
+
+```text
+experimental target validation
+
+binding-affinity measurement
+
+IC50 prediction
+
+Ki prediction
+
+Kd prediction
+
+EC50 prediction
+
+clinical efficacy prediction
+
+encoder retraining
+
+decoder retraining
+
+predictor retraining
+
+Fisher recalculation
+
+EWC parameter updates
+
+closed-loop parameter adaptation
+```
+
+Therefore:
+
+\[
+\text{computational prioritization}
+\neq
+\text{experimentally verified biological activity}
+\]
+
+
+==================================================
+## 1. INPUT CANDIDATE POOL
+==================================================
+
+The principal input to Phase 16 is:
+
+\[
+C_1^{eligible}
+\]
+
+from Phase 15.
+
+For Cycle 1:
+
+\[
+|C_1^{eligible}|=843
+\]
+
+These candidates have already passed:
+
+```text
+Phase-14 molecular generation
+
+SELFIES decoding
+
+RDKit parsing
+
+sanitization
+
+chemical standardization
+
+canonical deduplication
+
+baseline-relative novelty assessment
+
+Phase-15 structural eligibility verification
+
+valence verification
+
+single-fragment verification
+
+heavy-atom feasibility
+
+descriptor-finiteness screening
+```
+
+Therefore Phase 16 operates only on chemically eligible generated candidates.
+
+
+==================================================
+## 2. PHASE-15 INFORMATION REUSED
+==================================================
+
+Phase 15 already calculated and preserved:
+
+```text
+candidate_id
+
+canonical_smiles
+
+generation provenance
+
+QED
+
+SA score
+
+molecular weight
+
+heavy atom count
+
+cLogP
+
+TPSA
+
+HBD
+
+HBA
+
+rotatable bonds
+
+formal charge
+
+ring count
+
+aromatic ring count
+
+fraction Csp3
+
+Lipinski violation count
+
+soft physicochemical flags
+```
+
+These descriptors should be reused rather than recalculated unnecessarily.
+
+
+==================================================
+## 3. BASELINE KNOWLEDGE STATE
+==================================================
+
+Phase 16 begins from the consolidated baseline knowledge state:
+
+\[
+K_0
+=
+\{
+\Theta^*,
+F_E,
+F_P,
+Z_0
+\}
+\]
+
+where:
+
+\[
+\Theta^*
+=
+\{
+\theta_E^*,
+\theta_D^*,
+\theta_P^*
+\}
+\]
+
+and:
+
+\[
+\theta_E^*
+\]
+
+is the frozen trained geometry-aware molecular encoder,
+
+\[
+\theta_D^*
+\]
+
+is the frozen trained latent-conditioned molecular decoder,
+
+\[
+\theta_P^*
+\]
+
+is the frozen DrugBank-grounded target-association predictor,
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+are the Phase-13 empirical Fisher importance references,
+
+and:
+
+\[
+Z_0
+\]
+
+is the baseline molecular latent reference.
+
+Phase 16 must preserve all of these.
+
+
+==================================================
+## 4. WHY GENERATED CANDIDATES MUST BE RE-ENCODED
+==================================================
+
+Phase 14 generated candidate molecules using proposed latent vectors.
+
+However, the latent vector used to generate a molecule should not automatically be assumed to be the final representation of the generated molecular structure.
+
+Once a molecular structure has been generated, the structure itself should be evaluated.
+
+Therefore each Phase-16 candidate must be passed back through the trained molecular encoder.
+
+The correct evaluation pathway is:
+
+```text
+generated candidate molecule
+        ↓
+candidate molecular graph
+        ↓
+frozen encoder θE*
+        ↓
+deterministic candidate latent μcandidate
+        ↓
+frozen Phase-12 latent normalization
+        ↓
+frozen predictor θP*
+        ↓
+target-association relevance scores
+```
+
+This ensures that biological evaluation is based on the actual generated molecular structure rather than only on the latent proposal that produced it.
+
+
+==================================================
+## 5. CANDIDATE GRAPH CONSTRUCTION
+==================================================
+
+Each eligible candidate must be converted into a molecular graph compatible with the trained geometry-aware encoder.
+
+The graph representation must follow the same structural conventions used during baseline graph construction.
+
+Candidate graphs should contain:
+
+```text
+node features
+
+edge features
+
+3D coordinates
+
+candidate molecular identity
+```
+
+The node-feature and edge-feature dimensions must match the dimensions expected by the frozen encoder.
+
+
+==================================================
+## 6. GRAPH-SCHEMA CONSISTENCY
+==================================================
+
+The same graph feature schema used during Phase 7, Phase 9, and Phase 10 must be reused.
+
+Do not introduce new graph features in Phase 16.
+
+Do not reorder graph features.
+
+Do not remove previously used graph features.
+
+Thus:
+
+\[
+Schema_{candidate}
+=
+Schema_{baseline}
+\]
+
+
+==================================================
+## 7. 3D GEOMETRY GENERATION
+==================================================
+
+Because the encoder is geometry-aware, generated candidates require 3D coordinates.
+
+A reproducible 3D conformer-generation procedure should be used.
+
+Recommended pathway:
+
+```text
+canonical SMILES
+        ↓
+RDKit molecule
+        ↓
+add explicit hydrogens
+        ↓
+ETKDGv3 conformer generation
+        ↓
+MMFF optimization when parameters are available
+        ↓
+UFF fallback when needed
+        ↓
+restore baseline graph representation policy
+        ↓
+center molecular coordinates
+        ↓
+geometry-aware candidate graph
+```
+
+The random seed must remain fixed.
+
+
+==================================================
+## 8. CONSISTENCY WITH PHASE-7 GEOMETRY POLICY
+==================================================
+
+Wherever possible, candidate graph construction should reproduce the Phase-7 molecular graph methodology.
+
+This includes:
+
+```text
+ETKDGv3 conformer generation
+
+MMFF optimization when available
+
+UFF fallback
+
+single-conformer representation
+
+centered coordinates
+
+same atom-feature schema
+
+same bond-feature schema
+```
+
+This minimizes representation drift between baseline training molecules and generated candidates.
+
+
+==================================================
+## 9. CONFORMER FAILURE POLICY
+==================================================
+
+A chemically valid candidate may still fail 3D conformer generation.
+
+Such a candidate must not silently disappear.
+
+For each candidate record:
+
+```text
+conformer_success
+
+geometry_method
+
+geometry_optimization
+
+geometry_failure_reason
+```
+
+If a usable geometry cannot be generated, the candidate should be retained in the audit table but excluded from encoder-based biological scoring.
+
+
+==================================================
+## 10. GRAPH-CONSTRUCTION FAILURE POLICY
+==================================================
+
+Similarly, graph-construction failures must be explicitly recorded.
+
+Recommended fields include:
+
+```text
+graph_success
+
+graph_failure_reason
+
+num_nodes
+
+num_edges
+
+coordinate_finite
+
+feature_finite
+```
+
+Only candidates with a valid encoder-compatible graph proceed to the biological predictor.
+
+
+==================================================
+## 11. GRAPH-FEATURE NORMALIZATION
+==================================================
+
+Candidate graph features must use the exact normalization established from the training data during Phase 9 and reused during Phase 10.
+
+Do not refit graph normalization using generated candidates.
+
+Therefore:
+
+\[
+Normalization_{Phase16}
+=
+Normalization_{baseline}
+\]
+
+This preserves the baseline feature space.
+
+
+==================================================
+## 12. FROZEN ENCODER
+==================================================
+
+During Phase 16:
+
+\[
+\theta_E
+=
+\theta_E^*
+\]
+
+The encoder remains frozen.
+
+No gradient-based parameter update occurs.
+
+
+==================================================
+## 13. DETERMINISTIC CANDIDATE ENCODING
+==================================================
+
+For each candidate use:
+
+\[
+z_i=\mu_i
+\]
+
+rather than stochastic variational sampling.
+
+Thus:
+
+```text
+candidate graph
+↓
+θE*
+↓
+μcandidate
+```
+
+is used.
+
+The stochastic representation:
+
+\[
+z
+=
+\mu
++
+\sigma\epsilon
+\]
+
+is not used for the primary candidate-scoring pathway.
+
+
+==================================================
+## 14. WHY DETERMINISTIC μ IS USED
+==================================================
+
+Using deterministic:
+
+\[
+z=\mu
+\]
+
+provides:
+
+```text
+reproducibility
+
+stable candidate ranking
+
+consistent comparison across candidates
+
+compatibility with the Phase-12 predictor pathway
+```
+
+Predictive uncertainty is estimated separately through MC dropout in the predictor.
+
+
+==================================================
+## 15. PHASE-12 LATENT NORMALIZATION
+==================================================
+
+Candidate latent representations must be normalized using the frozen Phase-12 training-derived latent normalization.
+
+For latent dimension:
+
+\[
+k
+\]
+
+use:
+
+\[
+z'_{ik}
+=
+\frac{
+z_{ik}
+-
+\mu_{train,k}
+}{
+\sigma_{train,k}
+}
+\]
+
+The normalization statistics must not be recalculated using generated molecules.
+
+
+==================================================
+## 16. FROZEN BIOLOGICAL PREDICTOR
+==================================================
+
+The normalized candidate latent vector is passed through:
+
+\[
+\theta_P^*
+\]
+
+the frozen Phase-12 DrugBank-grounded multi-label target-association predictor.
+
+The predictor output dimension is:
+
+\[
+K=130
+\]
+
+corresponding to the frozen Phase-12 target vocabulary.
+
+
+==================================================
+## 17. TARGET VOCABULARY
+==================================================
+
+The exact Phase-12 130-target vocabulary must be reused.
+
+Do not:
+
+```text
+add target classes
+
+remove target classes
+
+change target order
+
+recalculate target support
+
+rebuild target vocabulary
+```
+
+The predictor output dimensions must retain exactly the same biological interpretation as during baseline training.
+
+
+==================================================
+## 18. CONTINUOUS TARGET-ASSOCIATION SCORES
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+and target class:
+
+\[
+k
+\]
+
+the predictor produces logit:
+
+\[
+l_{ik}
+\]
+
+Convert the logit to a sigmoid score:
+
+\[
+p_{ik}
+=
+\sigma(l_{ik})
+\]
+
+where:
+
+\[
+0\le p_{ik}\le1
+\]
+
+These values should be described as:
+
+**DrugBank-grounded continuous target-association relevance scores**
+
+or:
+
+**target-association ranking scores**.
+
+
+==================================================
+## 19. IMPORTANT TERMINOLOGY
+==================================================
+
+Do not describe:
+
+\[
+p_{ik}
+\]
+
+as:
+
+```text
+binding affinity
+
+binding probability
+
+IC50
+
+Ki
+
+Kd
+
+EC50
+
+experimentally measured activity
+
+calibrated probability of binding
+```
+
+The predictor was trained on DrugBank target-association labels using weighted BCE.
+
+Therefore its sigmoid outputs are best interpreted as:
+
+**continuous ranking / relevance surrogates**.
+
+
+==================================================
+## 20. PHASE-12 THRESHOLD POLICY
+==================================================
+
+Phase 12 established a validation-derived threshold:
+
+\[
+\tau
+\]
+
+for hard multi-label evaluation.
+
+That threshold should not be the primary basis for Phase-16 candidate ranking.
+
+Phase 16 should use the continuous predictor scores directly.
+
+The threshold may optionally be retained for descriptive fields such as:
+
+```text
+number of target scores above baseline threshold
+```
+
+but the main ranking should use continuous values.
+
+
+==================================================
+## 21. FULL TARGET-ASSOCIATION VECTOR
+==================================================
+
+For each candidate preserve:
+
+\[
+\mathbf{p}_i
+=
+[
+p_{i1},
+p_{i2},
+...
+,p_{i130}
+]
+\]
+
+Do not discard this vector after scalar biological summary scores are calculated.
+
+The full vector allows:
+
+```text
+candidate-target matrix analysis
+
+target-specific interpretation
+
+future target-panel analysis
+
+feedback diagnostics
+
+comparison across closed-loop cycles
+```
+
+
+==================================================
+## 22. GENERAL BIOLOGICAL RELEVANCE SURROGATE
+==================================================
+
+If no single predefined therapeutic target is being optimized, summarize biological relevance using the highest predicted target-association scores.
+
+Define:
+
+\[
+K_B=5
+\]
+
+Let:
+
+\[
+Top5_i
+\]
+
+represent the five target classes having the highest predictive mean scores for candidate:
+
+\[
+i
+\]
+
+Then define:
+
+\[
+B_i
+=
+\frac{1}{5}
+\sum_{k\in Top5_i}
+\bar p_{ik}
+\]
+
+where:
+
+\[
+B_i
+\]
+
+is the candidate-level biological relevance surrogate.
+
+
+==================================================
+## 23. WHY TOP-5 MEAN IS USED
+==================================================
+
+Using only:
+
+\[
+\max_k p_{ik}
+\]
+
+may allow one isolated high target score to dominate candidate ranking.
+
+A top-5 mean provides a more stable aggregate of the candidate's strongest predicted target associations.
+
+Therefore:
+
+\[
+K_B=5
+\]
+
+is used as an operational baseline choice.
+
+It is not a universal biological constant.
+
+
+==================================================
+## 24. MAXIMUM BIOLOGICAL RELEVANCE
+==================================================
+
+Also retain:
+
+\[
+B_i^{max}
+=
+\max_k
+\bar p_{ik}
+\]
+
+for diagnostics.
+
+The primary biological ranking feature remains:
+
+\[
+B_i
+\]
+
+the top-5 mean.
+
+
+==================================================
+## 25. TARGET-SPECIFIC FUTURE EXTENSION
+==================================================
+
+If the project later specifies a predefined biological target:
+
+\[
+t
+\]
+
+then:
+
+\[
+B_i
+=
+p_{i,t}
+\]
+
+may be used.
+
+For a predefined target panel:
+
+\[
+T
+\]
+
+a panel score may be:
+
+\[
+B_i
+=
+\frac{1}{|T|}
+\sum_{k\in T}
+p_{ik}
+\]
+
+However, target selection should be predefined rather than chosen after seeing candidate scores.
+
+
+==================================================
+## 26. MODEL UNCERTAINTY
+==================================================
+
+Candidate evaluation should include an estimate of model uncertainty.
+
+The Phase-12 predictor contains dropout layers.
+
+Therefore Phase 16 can use Monte Carlo dropout to produce an approximate predictive uncertainty signal.
+
+
+==================================================
+## 27. MC-DROPOUT CONFIGURATION
+==================================================
+
+Recommended number of stochastic predictor passes:
+
+\[
+M=30
+\]
+
+For every candidate, perform:
+
+\[
+30
+\]
+
+predictor forward passes using the same normalized latent representation.
+
+
+==================================================
+## 28. IMPORTANT MC-DROPOUT POLICY
+==================================================
+
+The encoder remains deterministic.
+
+The predictor should first remain in evaluation mode.
+
+Then only the predictor's Dropout modules should be activated.
+
+Thus:
+
+```text
+encoder = eval()
+
+predictor = eval()
+
+activate predictor Dropout only
+
+keep LayerNorm deterministic
+```
+
+This prevents unrelated training-mode behavior from contaminating uncertainty estimation.
+
+
+==================================================
+## 29. PREDICTIVE MEAN
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+target:
+
+\[
+k
+\]
+
+and MC pass:
+
+\[
+m
+\]
+
+let:
+
+\[
+p_{ik}^{(m)}
+\]
+
+represent the stochastic sigmoid relevance score.
+
+Then:
+
+\[
+\bar p_{ik}
+=
+\frac{1}{M}
+\sum_{m=1}^{M}
+p_{ik}^{(m)}
+\]
+
+is the MC-dropout predictive mean.
+
+
+==================================================
+## 30. TARGET-LEVEL UNCERTAINTY
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+and target:
+
+\[
+k
+\]
+
+calculate:
+
+\[
+\sigma_{ik}
+=
+\sqrt{
+\frac{1}{M-1}
+\sum_{m=1}^{M}
+\left(
+p_{ik}^{(m)}
+-
+\bar p_{ik}
+\right)^2
+}
+\]
+
+This represents an approximate model-based predictive uncertainty signal.
+
+
+==================================================
+## 31. CANDIDATE-LEVEL UNCERTAINTY
+==================================================
+
+Using the same target classes selected in:
+
+\[
+Top5_i
+\]
+
+define candidate uncertainty:
+
+\[
+U_i
+=
+\frac{1}{5}
+\sum_{k\in Top5_i}
+\sigma_{ik}
+\]
+
+This gives the mean uncertainty associated with the candidate's strongest predicted target associations.
+
+
+==================================================
+## 32. MAXIMUM UNCERTAINTY
+==================================================
+
+Also retain:
+
+\[
+U_i^{max}
+=
+\max_k
+\sigma_{ik}
+\]
+
+for diagnostics.
+
+
+==================================================
+## 33. UNCERTAINTY INTERPRETATION
+==================================================
+
+The uncertainty estimate should be described as:
+
+```text
+MC-dropout predictive uncertainty
+
+approximate model uncertainty
+
+uncertainty surrogate
+```
+
+Do not describe it as:
+
+```text
+experimentally calibrated uncertainty
+
+true biological uncertainty
+
+clinical confidence
+
+probability of experimental failure
+```
+
+
+==================================================
+## 34. UCB-STYLE BIOLOGICAL ACQUISITION
+==================================================
+
+To combine predicted relevance with model uncertainty, define:
+
+\[
+BioUCB_i
+=
+B_i
++
+\kappa U_i
+\]
+
+The current project configuration uses:
+
+\[
+\kappa=1.0
+\]
+
+Therefore:
+
+\[
+BioUCB_i
+=
+B_i
++
+U_i
+\]
+
+
+==================================================
+## 35. INTERPRETATION OF BIOLOGICAL UCB
+==================================================
+
+A high:
+
+\[
+BioUCB_i
+\]
+
+may reflect:
+
+```text
+high predicted target-association relevance
+
+and/or
+
+higher predictive uncertainty
+```
+
+Therefore the UCB quantity is an:
+
+**acquisition score**
+
+rather than a biological activity measurement.
+
+
+==================================================
+## 36. CHEMICAL QUALITY — QED
+==================================================
+
+Phase 15 calculated:
+
+\[
+QED_i
+\]
+
+for all 843 eligible candidates.
+
+Phase 16 should reuse these values.
+
+QED should not be recalculated unless required for integrity verification.
+
+
+==================================================
+## 37. QED INTERPRETATION
+==================================================
+
+QED is treated as a computational drug-likeness descriptor.
+
+Higher QED generally indicates stronger agreement with the descriptor combination underlying the QED formulation.
+
+However:
+
+\[
+QED
+\neq
+biological\ activity
+\]
+
+\[
+QED
+\neq
+safety
+\]
+
+\[
+QED
+\neq
+therapeutic\ efficacy
+\]
+
+
+==================================================
+## 38. SYNTHETIC ACCESSIBILITY SCORE
+==================================================
+
+Phase 15 calculated:
+
+\[
+SA_i
+\]
+
+for all eligible candidates using:
+
+```text
+rdkit.Contrib.SA_Score.sascorer
+```
+
+These values should be reused.
+
+
+==================================================
+## 39. SA INTERPRETATION
+==================================================
+
+SA is a heuristic computational synthetic-accessibility descriptor.
+
+Lower values generally indicate easier estimated synthesis.
+
+Higher values generally indicate more difficult estimated synthesis.
+
+However:
+
+\[
+SA
+\]
+
+does not experimentally prove whether a molecule can or cannot be synthesized.
+
+
+==================================================
+## 40. SA UTILITY TRANSFORMATION
+==================================================
+
+Because:
+
+```text
+higher QED = favorable
+
+higher biological relevance = favorable
+
+lower SA = favorable
+```
+
+SA should be transformed so that all primary utility components share the same optimization direction.
+
+Using the conventional approximate SA range:
+
+\[
+1\le SA\le10
+\]
+
+define:
+
+\[
+SAUtility_i
+=
+1
+-
+\frac{
+SA_i-1
+}{
+9
+}
+\]
+
+and clip to:
+
+\[
+[0,1]
+\]
+
+Therefore:
+
+\[
+SAUtility_i
+=
+clip
+\left(
+1-\frac{SA_i-1}{9},
+0,
+1
+\right)
+\]
+
+Higher:
+
+\[
+SAUtility_i
+\]
+
+means more favorable heuristic synthetic accessibility.
+
+
+==================================================
+## 41. PHYSICOCHEMICAL CONTEXT
+==================================================
+
+Retain Phase-15 descriptors:
+
+```text
+molecular weight
+
+heavy atom count
+
+cLogP
+
+TPSA
+
+HBD
+
+HBA
+
+rotatable bonds
+
+formal charge
+
+ring count
+
+aromatic ring count
+
+fraction Csp3
+
+Lipinski violation count
+
+soft flags
+```
+
+These remain useful for interpretation.
+
+
+==================================================
+## 42. WHY PHYSICOCHEMICAL DESCRIPTORS SHOULD NOT ALL ENTER THE MAIN SCORE
+==================================================
+
+Several physicochemical descriptors are correlated.
+
+For example:
+
+```text
+QED already contains information related to several physicochemical properties
+
+Lipinski criteria overlap with MW, LogP, HBD and HBA
+```
+
+Including every descriptor independently in the same composite score could unintentionally double-count chemical properties.
+
+Therefore most physicochemical descriptors remain contextual features.
+
+
+==================================================
+## 43. MULTI-OBJECTIVE EVALUATION VECTOR
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+define the principal objective vector:
+
+\[
+\mathbf{o}_i
+=
+[
+QED_i,
+SAUtility_i,
+B_i,
+U_i,
+BioUCB_i
+]
+\]
+
+These quantities are retained independently even if scalar ranking scores are also calculated.
+
+
+==================================================
+## 44. MULTI-OBJECTIVE PRINCIPLE
+==================================================
+
+Phase 16 must not prioritize molecules using only one property.
+
+Candidate evaluation should integrate:
+
+```text
+chemical quality
+
+synthetic accessibility
+
+predicted biological relevance
+
+model uncertainty
+```
+
+This avoids optimizing only for:
+
+```text
+QED alone
+
+SA alone
+
+predictor score alone
+
+uncertainty alone
+```
+
+
+==================================================
+## 45. PRIMARY EXPLOITATION UTILITY
+==================================================
+
+Define:
+
+\[
+Utility_i
+=
+w_QQED_i
++
+w_SSAUtility_i
++
+w_BB_i
+\]
+
+where:
+
+\[
+w_Q+w_S+w_B=1
+\]
+
+Recommended baseline weights are:
+
+\[
+w_Q=0.30
+\]
+
+\[
+w_S=0.20
+\]
+
+\[
+w_B=0.50
+\]
+
+Thus:
+
+\[
+Utility_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i
+\]
+
+
+==================================================
+## 46. WHY BIOLOGICAL RELEVANCE RECEIVES THE LARGEST WEIGHT
+==================================================
+
+The objective of the pipeline is computational drug-discovery prioritization rather than generic chemical-property optimization.
+
+Therefore biological target-association relevance receives the largest contribution:
+
+\[
+w_B=0.50
+\]
+
+Chemical quality and synthetic accessibility remain important but secondary components.
+
+
+==================================================
+## 47. EXPLORATION-AWARE ACQUISITION SCORE
+==================================================
+
+For exploration-aware candidate selection, replace:
+
+\[
+B_i
+\]
+
+with:
+
+\[
+BioUCB_i
+\]
+
+Therefore:
+
+\[
+Acquisition_i
+=
+w_QQED_i
++
+w_SSAUtility_i
++
+w_BBioUCB_i
+\]
+
+Using the baseline weights:
+
+\[
+Acquisition_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50BioUCB_i
+\]
+
+
+==================================================
+## 48. SCORE-SCALE POLICY
+==================================================
+
+QED lies approximately in:
+
+\[
+[0,1]
+\]
+
+SA utility is explicitly mapped to:
+
+\[
+[0,1]
+\]
+
+Biological relevance:
+
+\[
+B_i
+\]
+
+lies in:
+
+\[
+[0,1]
+\]
+
+The UCB-style score may exceed 1 slightly because of uncertainty.
+
+Do not silently use candidate-pool-specific min-max scaling for the primary score.
+
+Such scaling would change score meaning whenever the candidate pool changes.
+
+
+==================================================
+## 49. EXPLOITATION RANKING
+==================================================
+
+Rank candidates by:
+
+\[
+Utility_i
+\]
+
+This ranking emphasizes:
+
+```text
+high QED
+
+favorable SA utility
+
+high predicted biological relevance
+```
+
+This is the primary exploitation ranking.
+
+
+==================================================
+## 50. EXPLORATION-AWARE RANKING
+==================================================
+
+Rank candidates separately by:
+
+\[
+Acquisition_i
+\]
+
+This ranking emphasizes:
+
+```text
+high chemical quality
+
+favorable synthetic accessibility
+
+high target-association relevance
+
+informative predictive uncertainty
+```
+
+This provides an exploration-aware candidate order.
+
+
+==================================================
+## 51. WHY TWO RANKINGS ARE RETAINED
+==================================================
+
+A pure exploitation ranking may repeatedly select candidates in familiar chemical regions.
+
+A purely uncertainty-driven ranking may prioritize molecules that are uncertain but otherwise unattractive.
+
+Therefore the pipeline retains:
+
+\[
+UtilityRank
+\]
+
+and:
+
+\[
+AcquisitionRank
+\]
+
+as complementary views.
+
+
+==================================================
+## 52. PARETO-FRONT ANALYSIS
+==================================================
+
+Phase 16 should also perform non-dominated sorting across the major objectives.
+
+Recommended Pareto objectives:
+
+```text
+maximize QED
+
+maximize SA utility
+
+maximize biological relevance
+```
+
+Uncertainty may optionally be considered separately as an exploration dimension.
+
+
+==================================================
+## 53. PARETO-OPTIMAL CANDIDATE
+==================================================
+
+Candidate:
+
+\[
+c_i
+\]
+
+is Pareto optimal when no other candidate performs at least as well on all selected objectives and strictly better on at least one objective.
+
+These candidates form:
+
+\[
+P_1
+\]
+
+the Cycle-1 Pareto candidate set.
+
+
+==================================================
+## 54. WHY PARETO ANALYSIS IS IMPORTANT
+==================================================
+
+A weighted scalar score imposes one particular set of preferences.
+
+Pareto analysis preserves alternative trade-offs.
+
+For example:
+
+```text
+Candidate A:
+high biological relevance
+moderate QED
+moderate SA utility
+
+Candidate B:
+moderate biological relevance
+high QED
+high SA utility
+
+Candidate C:
+high relevance
+lower synthetic accessibility
+```
+
+All may represent useful optimization trade-offs.
+
+
+==================================================
+## 55. TARGET-LEVEL INTERPRETATION
+==================================================
+
+For each candidate retain the top five predicted target classes.
+
+Recommended fields:
+
+```text
+top_target_1_id
+top_target_1_name
+top_target_1_score
+top_target_1_uncertainty
+
+top_target_2_id
+top_target_2_name
+top_target_2_score
+top_target_2_uncertainty
+
+...
+
+top_target_5_id
+top_target_5_name
+top_target_5_score
+top_target_5_uncertainty
+```
+
+If target names are not reliably available, preserve the frozen target IDs rather than inventing names.
+
+
+==================================================
+## 56. FULL TARGET-RELEVANCE MATRIX
+==================================================
+
+Save the complete candidate-target relevance matrix.
+
+For successfully encoded candidates:
+
+\[
+R
+\in
+\mathbb{R}^{N\times130}
+\]
+
+where:
+
+\[
+N
+\]
+
+is the number of successfully encoded Phase-16 candidates.
+
+
+==================================================
+## 57. FULL UNCERTAINTY MATRIX
+==================================================
+
+Also save:
+
+\[
+U
+\in
+\mathbb{R}^{N\times130}
+\]
+
+where each element contains:
+
+\[
+\sigma_{ik}
+\]
+
+the MC-dropout standard deviation for candidate:
+
+\[
+i
+\]
+
+and target:
+
+\[
+k
+\]
+
+
+==================================================
+## 58. CANDIDATE LATENT REPRESENTATION
+==================================================
+
+Save the deterministic re-encoded candidate latent representation:
+
+\[
+Z_1^{candidate}
+\]
+
+for every successfully encoded candidate.
+
+Each latent vector contains:
+
+\[
+32
+\]
+
+dimensions.
+
+Recommended columns:
+
+```text
+candidate_id
+z_0
+z_1
+...
+z_31
+```
+
+
+==================================================
+## 59. LATENT-DOMAIN DIAGNOSTICS
+==================================================
+
+Generated candidate representations may differ from the baseline latent distribution.
+
+Therefore record diagnostic quantities such as:
+
+```text
+nearest baseline latent distance
+
+distance from baseline latent centroid
+
+candidate latent norm
+
+nearest baseline molecular similarity
+```
+
+where available.
+
+
+==================================================
+## 60. MODEL-DOMAIN CAUTION
+==================================================
+
+A candidate far from the baseline molecular or latent distribution may receive unreliable predictor outputs.
+
+Therefore high biological relevance scores should always be interpreted together with:
+
+```text
+latent-domain distance
+
+molecular similarity
+
+MC-dropout uncertainty
+```
+
+
+==================================================
+## 61. PHASE-14 GENERATION PROVENANCE
+==================================================
+
+Retain candidate generation provenance wherever available:
+
+```text
+generation_method
+
+latent_proposal_id
+
+seed_graph_id
+
+seed_drug_id
+
+second_seed_graph_id
+
+second_seed_drug_id
+
+perturbation_sigma
+
+interpolation_alpha
+
+decoder_sample_index
+
+nearest_baseline_similarity
+```
+
+This allows analysis of which generation strategies produce highly ranked candidates.
+
+
+==================================================
+## 62. PHASE-15 SOFT FLAGS
+==================================================
+
+Retain Phase-15 flags such as:
+
+```text
+high_mw
+
+high_clogp
+
+high_tpsa
+
+high_hbd
+
+high_hba
+
+high_rotatable_bonds
+
+large_absolute_formal_charge
+
+multiple_lipinski_violations
+```
+
+These remain interpretive flags.
+
+They do not automatically disqualify candidates during Phase 16.
+
+
+==================================================
+## 63. PRIMARY CANDIDATE EVALUATION TABLE
+==================================================
+
+The main Phase-16 candidate table should contain at minimum:
+
+```text
+candidate_id
+
+canonical_smiles
+
+generation_method
+
+latent_proposal_id
+
+QED
+
+SA
+
+SA utility
+
+MW
+
+cLogP
+
+TPSA
+
+HBD
+
+HBA
+
+rotatable bonds
+
+formal charge
+
+fraction Csp3
+
+soft flags
+
+conformer_success
+
+graph_success
+
+candidate_z_0
+...
+candidate_z_31
+
+biological_relevance_top5_mean
+
+biological_relevance_max
+
+mc_uncertainty_top5_mean
+
+mc_uncertainty_max
+
+bio_ucb
+
+utility_score
+
+acquisition_score
+
+utility_rank
+
+acquisition_rank
+
+pareto_optimal
+
+top_target_1_id
+top_target_1_score
+top_target_1_uncertainty
+
+...
+
+top_target_5_id
+top_target_5_score
+top_target_5_uncertainty
+```
+
+
+==================================================
+## 64. BIOLOGICAL RELEVANCE FORMULA
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+let the top five target classes according to predictive mean be:
+
+\[
+Top5_i
+\]
+
+Then:
+
+\[
+B_i
+=
+\frac{1}{5}
+\sum_{k\in Top5_i}
+\bar p_{ik}
+\]
+
+
+==================================================
+## 65. MAXIMUM BIOLOGICAL SCORE
+==================================================
+
+Retain:
+
+\[
+B_i^{max}
+=
+\max_k
+\bar p_{ik}
+\]
+
+for diagnostics.
+
+
+==================================================
+## 66. CANDIDATE UNCERTAINTY FORMULA
+==================================================
+
+Using the same top-five targets:
+
+\[
+U_i
+=
+\frac{1}{5}
+\sum_{k\in Top5_i}
+\sigma_{ik}
+\]
+
+
+==================================================
+## 67. MAXIMUM UNCERTAINTY
+==================================================
+
+Also retain:
+
+\[
+U_i^{max}
+=
+\max_k
+\sigma_{ik}
+\]
+
+
+==================================================
+## 68. BIOLOGICAL UCB FORMULA
+==================================================
+
+Define:
+
+\[
+BioUCB_i
+=
+B_i
++
+\kappa U_i
+\]
+
+with:
+
+\[
+\kappa=1.0
+\]
+
+
+==================================================
+## 69. SA UTILITY FORMULA
+==================================================
+
+Define:
+
+\[
+SAUtility_i
+=
+clip
+\left(
+1-\frac{SA_i-1}{9},
+0,
+1
+\right)
+\]
+
+
+==================================================
+## 70. PRIMARY UTILITY FORMULA
+==================================================
+
+Define:
+
+\[
+Utility_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i
+\]
+
+
+==================================================
+## 71. ACQUISITION FORMULA
+==================================================
+
+Define:
+
+\[
+Acquisition_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50BioUCB_i
+\]
+
+
+==================================================
+## 72. CANDIDATE-SELECTION POLICY
+==================================================
+
+Phase 16 may identify candidates for a future feedback set.
+
+Recommended candidate categories include:
+
+```text
+highest exploitation utility
+
+highest exploration-aware acquisition
+
+Pareto-optimal candidates
+```
+
+These may later contribute to:
+
+\[
+S_1
+\]
+
+the Cycle-1 feedback candidate subset.
+
+
+==================================================
+## 73. PHASE 16 SHOULD NOT ADAPT THE MODEL
+==================================================
+
+Candidate selection is permitted.
+
+Model adaptation is not.
+
+Therefore Phase 16 may produce:
+
+\[
+S_1
+\]
+
+but must not yet modify:
+
+\[
+\theta_E^*
+\]
+
+\[
+\theta_D^*
+\]
+
+or:
+
+\[
+\theta_P^*
+\]
+
+
+==================================================
+## 74. DIVERSITY-AWARE FEEDBACK SELECTION
+==================================================
+
+Future feedback candidates should not consist entirely of highly similar structures.
+
+A diversity-aware selection policy may be applied after ranking.
+
+Possible strategy:
+
+```text
+sort candidates by acquisition score
+        ↓
+select highest-ranked candidate
+        ↓
+compare next candidate with already selected molecules
+        ↓
+retain if sufficiently chemically distinct
+        ↓
+continue until selection budget reached
+```
+
+Any molecular-similarity threshold used must be explicitly recorded.
+
+
+==================================================
+## 75. MULTI-OBJECTIVE SELECTION PRINCIPLE
+==================================================
+
+Candidate selection should balance:
+
+\[
+Exploitation
+\]
+
+and:
+
+\[
+Exploration
+\]
+
+as well as:
+
+\[
+Chemical\ Quality
+\]
+
+and:
+
+\[
+Synthetic\ Accessibility
+\]
+
+This prevents the feedback engine from collapsing onto a single objective.
+
+
+==================================================
+## 76. TEST-SET PROTECTION
+==================================================
+
+The original Phase-8 held-out test dataset remains protected.
+
+Phase 16 must not use test-set outcomes to tune:
+
+```text
+QED weight
+
+SA weight
+
+biological weight
+
+top-K target aggregation
+
+UCB kappa
+
+selection threshold
+
+candidate budget
+
+diversity threshold
+```
+
+These values should be predefined, training-derived, validation-derived where appropriate, or documented as methodological choices.
+
+
+==================================================
+## 77. NO TEST-SET FEEDBACK
+==================================================
+
+No generated-candidate ranking decision should depend on Phase-8 test-set labels.
+
+The held-out test set remains reserved for baseline model evaluation and any explicitly planned final system comparison.
+
+
+==================================================
+## 78. BASELINE PARAMETER INTEGRITY
+==================================================
+
+Before candidate evaluation, calculate checkpoint hashes for:
+
+```text
+θE*
+
+θD*
+
+θP*
+
+F_E
+
+F_P
+```
+
+After Phase 16, verify that the hashes remain unchanged.
+
+Required:
+
+\[
+hash_{before}
+=
+hash_{after}
+\]
+
+
+==================================================
+## 79. NO OPTIMIZER
+==================================================
+
+Phase 16 does not require an optimizer.
+
+No call equivalent to:
+
+```text
+optimizer.step()
+```
+
+should occur.
+
+
+==================================================
+## 80. NO EWC
+==================================================
+
+Although Phase 13 established Fisher references:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+Phase 16 does not yet apply EWC.
+
+EWC is reserved for the adaptation phase.
+
+
+==================================================
+## 81. NO FISHER RECALCULATION
+==================================================
+
+Phase 16 does not recalculate:
+
+\[
+F_E
+\]
+
+or:
+
+\[
+F_P
+\]
+
+The Phase-13 baseline Fisher references remain unchanged.
+
+
+==================================================
+## 82. NO GENERATOR RETRAINING
+==================================================
+
+The generative decoder:
+
+\[
+\theta_D^*
+\]
+
+does not change during Phase 16.
+
+No decoder Fisher is calculated.
+
+No decoder adaptation occurs.
+
+
+==================================================
+## 83. RECOMMENDED OUTPUT FILES
+==================================================
+
+Recommended Phase-16 outputs:
+
+```text
+phase16_evaluation_config.json
+
+phase16_candidate_graph_manifest.csv
+
+phase16_candidate_latent_representations.csv
+
+phase16_target_relevance_matrix.csv
+
+phase16_target_uncertainty_matrix.csv
+
+phase16_candidate_multiobjective_scores.csv
+
+phase16_candidate_rankings.csv
+
+phase16_pareto_candidates.csv
+
+phase16_selected_candidates.csv
+
+phase16_evaluation_qc_summary.csv
+
+phase16_evaluation_qc_summary.json
+```
+
+
+==================================================
+## 84. CANDIDATE GRAPH MANIFEST
+==================================================
+
+The candidate graph manifest should include:
+
+```text
+candidate_id
+
+canonical_smiles
+
+conformer_success
+
+conformer_method
+
+optimization_method
+
+graph_success
+
+num_nodes
+
+num_edges
+
+coordinate_finite
+
+feature_finite
+
+graph_failure_reason
+```
+
+
+==================================================
+## 85. LATENT REPRESENTATION FILE
+==================================================
+
+The candidate latent file should contain:
+
+```text
+candidate_id
+
+z_0
+z_1
+...
+z_31
+```
+
+for every successfully encoded candidate.
+
+
+==================================================
+## 86. TARGET-RELEVANCE MATRIX
+==================================================
+
+The target-relevance matrix should contain:
+
+```text
+candidate_id
+
+target_1_score
+
+target_2_score
+
+...
+
+target_130_score
+```
+
+with target identifiers linked to the frozen Phase-12 target vocabulary.
+
+
+==================================================
+## 87. TARGET-UNCERTAINTY MATRIX
+==================================================
+
+The uncertainty matrix should contain:
+
+```text
+candidate_id
+
+target_1_uncertainty
+
+target_2_uncertainty
+
+...
+
+target_130_uncertainty
+```
+
+
+==================================================
+## 88. MULTI-OBJECTIVE SCORE FILE
+==================================================
+
+The multi-objective score file should contain:
+
+```text
+candidate_id
+
+canonical_smiles
+
+qed
+
+sa_score
+
+sa_utility
+
+biological_relevance_top5_mean
+
+biological_relevance_max
+
+mc_uncertainty_top5_mean
+
+mc_uncertainty_max
+
+bio_ucb
+
+utility_score
+
+acquisition_score
+
+utility_rank
+
+acquisition_rank
+
+pareto_optimal
+```
+
+
+==================================================
+## 89. PARETO CANDIDATE FILE
+==================================================
+
+The file:
+
+```text
+phase16_pareto_candidates.csv
+```
+
+should contain candidates that are non-dominated with respect to the chosen main objectives.
+
+Recommended objectives:
+
+```text
+maximize QED
+
+maximize SA utility
+
+maximize biological relevance
+```
+
+
+==================================================
+## 90. SELECTED CANDIDATE FILE
+==================================================
+
+The file:
+
+```text
+phase16_selected_candidates.csv
+```
+
+may contain the candidate set proposed for future feedback.
+
+Each selected candidate should retain:
+
+```text
+selection_reason
+
+utility rank
+
+acquisition rank
+
+Pareto status
+
+generation provenance
+
+chemical descriptors
+
+biological relevance
+
+uncertainty
+```
+
+
+==================================================
+## 91. SELECTION REASONS
+==================================================
+
+Recommended selection categories include:
+
+```text
+top_exploitation
+
+top_acquisition
+
+pareto_optimal
+
+diversity_selected
+```
+
+A candidate may belong to more than one category.
+
+
+==================================================
+## 92. QUALITY CONTROL
+==================================================
+
+Verify:
+
+```text
+C1_eligible loaded successfully
+
+expected candidate count recorded
+
+candidate IDs preserved
+
+canonical identities preserved
+
+Phase-15 QED reused
+
+Phase-15 SA reused
+
+candidate graph construction attempted
+
+candidate graph schema matches baseline
+
+3D geometry generated
+
+conformer failures documented
+
+graph failures documented
+
+graph normalization reused
+
+θE* loaded correctly
+
+deterministic μ used
+
+Phase-12 latent normalization reused
+
+θP* loaded correctly
+
+130-target vocabulary reused
+
+continuous target relevance calculated
+
+full relevance matrix saved
+
+MC-dropout uncertainty calculated
+
+only Dropout made stochastic
+
+encoder remained deterministic
+
+LayerNorm remained deterministic
+
+full uncertainty matrix saved
+
+top-5 biological relevance calculated
+
+maximum biological relevance calculated
+
+top-5 uncertainty calculated
+
+maximum uncertainty calculated
+
+BioUCB calculated
+
+QED retained
+
+SA utility calculated
+
+physicochemical descriptors retained
+
+utility score calculated
+
+acquisition score calculated
+
+Pareto status calculated
+
+utility ranking calculated
+
+acquisition ranking calculated
+
+candidate provenance preserved
+
+baseline parameter hashes unchanged
+
+Fisher hashes unchanged
+
+test data not used to tune ranking
+
+no optimizer update
+
+no EWC
+
+no model adaptation
+```
+
+
+==================================================
+## 93. COMPLETION CRITERIA
+==================================================
+
+Phase 16 is complete when:
+
+1. The finalized Phase-15 eligible candidate pool is loaded.
+
+2. Candidate identifiers are preserved.
+
+3. Canonical molecular identities are preserved.
+
+4. Phase-15 QED values are reused.
+
+5. Phase-15 SA scores are reused.
+
+6. Candidate 3D conformer generation is attempted.
+
+7. Candidate molecular graphs are constructed.
+
+8. Graph failures are explicitly documented.
+
+9. Graph feature schema matches baseline training.
+
+10. Baseline graph-feature normalization is reused.
+
+11. The frozen encoder \(\theta_E^*\) is loaded.
+
+12. Candidate latent representations use deterministic \(\mu\).
+
+13. Candidate latent vectors are saved.
+
+14. Phase-12 latent normalization is reused.
+
+15. The frozen predictor \(\theta_P^*\) is loaded.
+
+16. The frozen 130-target vocabulary is reused.
+
+17. Continuous target-association relevance scores are calculated.
+
+18. The complete target-relevance matrix is saved.
+
+19. MC-dropout evaluation is performed.
+
+20. Only predictor dropout is intentionally stochastic.
+
+21. LayerNorm remains deterministic.
+
+22. The encoder remains deterministic.
+
+23. Target-level predictive standard deviations are calculated.
+
+24. The complete uncertainty matrix is saved.
+
+25. Top-5 biological relevance is calculated.
+
+26. Maximum biological relevance is recorded.
+
+27. Top-5 predictive uncertainty is calculated.
+
+28. Maximum predictive uncertainty is recorded.
+
+29. Biological UCB is calculated.
+
+30. QED is retained.
+
+31. SA utility is calculated.
+
+32. Physicochemical context is retained.
+
+33. Exploitation utility is calculated.
+
+34. Exploration-aware acquisition is calculated.
+
+35. Pareto-optimal candidates are identified.
+
+36. Utility ranking is calculated.
+
+37. Acquisition ranking is calculated.
+
+38. Candidate generation provenance remains available.
+
+39. A future feedback candidate set may be proposed.
+
+40. Baseline model checkpoints remain unchanged.
+
+41. Fisher references remain unchanged.
+
+42. Test data is not used for ranking-parameter tuning.
+
+43. No optimizer update occurs.
+
+44. No EWC occurs.
+
+45. No model adaptation occurs.
+
+
+==================================================
+## 94. APPROPRIATE TERMINOLOGY AFTER PHASE 16
+==================================================
+
+It is appropriate to state:
+
+> “Chemically eligible generated candidates were re-encoded using the frozen geometry-aware molecular encoder and evaluated using the frozen DrugBank-grounded target-association predictor.”
+
+
+It is appropriate to state:
+
+> “Candidate biological relevance was represented using continuous DrugBank-grounded target-association ranking scores rather than experimental binding-affinity measurements.”
+
+
+It is appropriate to state:
+
+> “Predictive uncertainty was approximated using Monte Carlo dropout applied to the frozen baseline predictor.”
+
+
+It is appropriate to state:
+
+> “Chemical quality, synthetic-accessibility heuristics, biological relevance, and predictive uncertainty were integrated within a multi-objective computational prioritization framework.”
+
+
+It is appropriate to state:
+
+> “Both exploitation-oriented and uncertainty-aware acquisition rankings were retained to balance candidate quality and exploration.”
+
+
+It is appropriate to state:
+
+> “Pareto analysis was used to preserve candidates representing alternative trade-offs among chemical quality, synthetic accessibility, and predicted biological relevance.”
+
+
+==================================================
+## 95. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+```text
+“The predictor estimates binding affinity.”
+
+“The predictor estimates IC50.”
+
+“The predictor estimates Ki.”
+
+“The predictor estimates Kd.”
+
+“The candidate definitely binds the target.”
+
+“The candidate is experimentally active.”
+
+“The candidate is therapeutically effective.”
+
+“The UCB score proves efficacy.”
+
+“The uncertainty is clinically calibrated.”
+
+“The highest-ranked molecule is the best drug.”
+
+“The SA score proves the molecule can be synthesized.”
+
+“The model has already improved.”
+
+“EWC has already prevented forgetting.”
+
+“The system has already self-evolved.”
+```
+
+
+==================================================
+## FINAL PHASE-16 WORKFLOW
+==================================================
+
+```text
+Phase-15 Eligible Candidate Pool
+
+C1_eligible
+        ↓
+843 Chemically Eligible Candidates
+        ↓
+Preserve Candidate Identity
++
+Preserve Phase-14 / Phase-15 Provenance
+        ↓
+3D Conformer Generation
+        ↓
+Candidate Molecular Graph Construction
+        ↓
+Baseline-Compatible Node / Edge Features
+        ↓
+Frozen Phase-9/10 Feature Normalization
+        ↓
+Frozen Encoder θE*
+        ↓
+Deterministic Candidate Latent μ
+        ↓
+Frozen Phase-12 Latent Normalization
+        ↓
+Frozen Predictor θP*
+        ↓
+130-Dimensional Target-Association Logits
+        ↓
+Sigmoid
+        ↓
+Continuous Target-Association Relevance
+        ↓
+MC-Dropout Evaluation
+        ↓
+Predictive Mean
++
+Predictive Standard Deviation
+        ↓
+Select Top-5 Targets by Predictive Mean
+        ↓
+Biological Relevance
+
+B_i
+=
+mean(top-5 predictive means)
+
+        ↓
+Predictive Uncertainty
+
+U_i
+=
+mean(uncertainty for the same top-5 targets)
+
+        ↓
+Biological UCB
+
+BioUCB_i
+=
+B_i
++
+κU_i
+
+κ = 1.0
+
+        ↓
+Reuse Phase-15 QED
+        ↓
+Reuse Phase-15 SA Score
+        ↓
+Convert SA to SA Utility
+
+SAUtility_i
+=
+clip
+(
+1-(SA_i-1)/9,
+0,
+1
+)
+
+        ↓
+Multi-Objective Vector
+
+[
+QED_i,
+SAUtility_i,
+B_i,
+U_i,
+BioUCB_i
+]
+
+        ↓
+────────────────────────────────────────────
+EXPLOITATION UTILITY
+
+Utility_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i
+────────────────────────────────────────────
+
+        ↓
+────────────────────────────────────────────
+EXPLORATION-AWARE ACQUISITION
+
+Acquisition_i
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50BioUCB_i
+────────────────────────────────────────────
+
+        ↓
+Utility Ranking
++
+Acquisition Ranking
++
+Pareto Analysis
+        ↓
+Computationally Prioritized Candidates
+        ↓
+Optional Diversity-Aware Selection
+        ↓
+Future Feedback Candidate Set S1
+        ↓
+NO PARAMETER UPDATE YET
+```
+
+
+==================================================
+## FINAL PHASE-16 STATE
+==================================================
+
+At completion of Phase 16:
+
+\[
+C_1^{eligible}
+\]
+
+has been computationally evaluated.
+
+Candidate molecular structures have been re-encoded.
+
+DrugBank-grounded target-association relevance has been estimated.
+
+Predictive uncertainty has been estimated.
+
+QED and SA have been integrated into multi-objective ranking.
+
+Candidate utility and acquisition rankings have been established.
+
+Pareto-optimal candidates have been identified.
+
+A future candidate feedback subset may be proposed.
+
+However:
+
+\[
+\theta_E
+=
+\theta_E^*
+\]
+
+\[
+\theta_D
+=
+\theta_D^*
+\]
+
+\[
+\theta_P
+=
+\theta_P^*
+\]
+
+and:
+
+\[
+F_E,
+F_P
+\]
+
+remain unchanged.
+
+Therefore:
+
+\[
+K_0
+\]
+
+is still preserved.
+
+
+==================================================
+## NEXT PHASE
+==================================================
+
+# PHASE 17 — FEEDBACK-CANDIDATE SELECTION AND EWC-REGULARIZED CLOSED-LOOP ADAPTATION
+
+Phase 17 will use the prioritized Phase-16 candidate information to define a controlled feedback signal and initiate model adaptation.
+
+The baseline Fisher information:
+
+\[
+F_E
+\]
+
+and:
+
+\[
+F_P
+\]
+
+will be used to constrain parameter drift through an EWC-style objective:
+
+\[
+\mathcal{L}_{total}
+=
+\mathcal{L}_{adapt}
++
+\lambda_{EWC}
+\sum_j
+F_j
+(
+\theta_j-\theta_j^*
+)^2
+\]
+
+The adaptation target must be designed carefully so that computational model predictions are not incorrectly treated as experimentally verified biological labels.
 ---
 
 # Phase 17 — Surrogate Bioactivity/Relevance Predictor
