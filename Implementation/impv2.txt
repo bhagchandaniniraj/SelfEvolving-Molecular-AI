@@ -20357,27 +20357,1689 @@ and
 for each candidate.
 
 ---
+=========================
 
-# Phase 19 — Multi-Objective Utility Calculation
+# PHASE 19 — CYCLE-2 MULTI-OBJECTIVE LATENT SEARCH AND MOLECULAR CANDIDATE GENERATION USING THE ACCEPTED K1 STATE
 
-Combine the relevant candidate properties into an overall computational utility.
 
-For example conceptually:
+## OBJECTIVE
+
+Phase 19 initiates the second closed-loop molecular generation cycle using the accepted adapted knowledge state:
+
+\[
+K_1
+\]
+
+which was validated in Phase 18 and approved for Cycle-2 generation.
+
+Phase 19 does not merely recalculate multi-objective utility.
+
+Instead, it uses the accepted K1 state to:
+
+```text
+re-evaluate prioritized Cycle-1 molecules
+
+perform utility-weight sensitivity analysis
+
+identify robust high-value latent regions
+
+select diverse Cycle-2 generation seeds
+
+perform controlled latent-space exploitation
+
+perform interpolation-based latent search
+
+perform broader latent-space exploration
+
+decode new molecular sequences
+
+canonicalize generated structures
+
+remove invalid and duplicate structures
+
+preserve full Cycle-2 generation provenance
+
+construct the raw Cycle-2 candidate pool C2
+```
+
+
+==================================================
+## IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 19 performs:
+
+```text
+Cycle-2 seed definition
+
+K1-based latent representation
+
+utility sensitivity analysis
+
+ranking robustness analysis
+
+diversity-aware seed selection
+
+latent perturbation
+
+latent interpolation
+
+controlled latent exploration
+
+frozen-decoder molecular generation
+
+canonicalization
+
+exact duplicate removal
+
+Cycle-1 overlap detection
+
+generation-provenance recording
+
+construction of raw Cycle-2 candidates
+```
+
+Phase 19 does NOT perform:
+
+```text
+experimental biological testing
+
+binding-affinity measurement
+
+IC50 measurement
+
+Ki measurement
+
+Kd measurement
+
+EC50 measurement
+
+model adaptation
+
+EWC optimization
+
+Fisher recalculation
+
+chemical eligibility screening
+
+full Cycle-2 pharmacological ranking
+
+Cycle-2 feedback adaptation
+```
+
+Those tasks belong to later phases.
+
+
+==================================================
+## 1. INPUT KNOWLEDGE STATE
+==================================================
+
+The Cycle-2 generation process begins from:
+
+\[
+K_1
+\]
+
+where:
+
+\[
+K_1
+=
+\{
+\theta_E^{(1)},
+\theta_D^*,
+\theta_P^{(1)},
+F_E,
+F_P,
+Z_0,
+S_1
+\}
+\]
+
+with:
+
+```text
+θE(1)
+=
+Cycle-1 adapted molecular encoder
+
+θD*
+=
+frozen molecular decoder
+
+θP(1)
+=
+Cycle-1 adapted target-association predictor
+
+F_E
+=
+baseline encoder Fisher reference
+
+F_P
+=
+baseline predictor Fisher reference
+
+S1
+=
+Cycle-1 prioritized feedback candidate set
+```
+
+
+==================================================
+## 2. PHASE-18 READINESS REQUIREMENT
+==================================================
+
+Phase 19 should begin only if Phase 18 confirms:
+
+\[
+Ready_{Cycle2}=True
+\]
+
+The required Phase-18 readiness components are:
+
+```text
+R_feedback             = True
+
+R_retention            = True
+
+R_uncertainty          = True
+
+R_latent_compatibility = True
+
+R_integrity            = True
+```
+
+If:
+
+\[
+Ready_{Cycle2}=False
+\]
+
+Phase 19 should not generate Cycle-2 molecules.
+
+
+==================================================
+## 3. PRIMARY CYCLE-2 GENERATION STATE
+==================================================
+
+Cycle-2 molecular search should use:
+
+\[
+\theta_E^{(1)}
+\]
+
+for adapted latent representation.
+
+The predictor:
+
+\[
+\theta_P^{(1)}
+\]
+
+should be used for K1-based candidate evaluation and seed prioritization.
+
+The decoder remains:
+
+\[
+\theta_D^*
+\]
+
+because no decoder adaptation has occurred.
+
+
+==================================================
+## 4. WHY THE PRIMARY UTILITY SHOULD REMAIN FIXED
+==================================================
+
+The primary multi-objective utility used previously was:
 
 \[
 U(c)
 =
-w_1 QED
+0.30QED(c)
 +
-w_2 SA_{norm}
+0.20SAUtility(c)
 +
-w_3 Bioactivity
+0.50B(c)
 \]
 
-Additional terms may later be incorporated if experimentally justified.
+This primary utility should remain unchanged for Cycle 2.
 
-The important issue is that the weights must be documented and ideally tested through sensitivity analysis rather than being treated as universal constants.
+Changing the objective simultaneously with changing the model state would confound:
 
+```text
+effect of model adaptation
+
+with
+
+effect of objective-function modification
+```
+
+Therefore the primary Cycle-2 utility remains:
+
+\[
+\boxed{
+U(c)
+=
+0.30QED(c)
++
+0.20SAUtility(c)
++
+0.50B(c)
+}
+\]
+
+
+==================================================
+## 5. UTILITY COMPONENTS
+==================================================
+
+For candidate:
+
+\[
+c
+\]
+
+define:
+
+\[
+QED(c)
+\]
+
+as the quantitative estimate of drug-likeness.
+
+Define:
+
+\[
+SAUtility(c)
+\]
+
+as the normalized synthetic-accessibility utility.
+
+Define:
+
+\[
+B(c)
+\]
+
+as the K1 DrugBank-grounded target-association relevance score.
+
+The biological component remains a:
+
+**target-association relevance surrogate**
+
+rather than:
+
+```text
+binding affinity
+
+IC50
+
+Ki
+
+Kd
+
+EC50
+
+experimental activity
+```
+
+
+==================================================
+## 6. IMPORTANT WEIGHT INTERPRETATION
+==================================================
+
+The weights:
+
+\[
+0.30,\;0.20,\;0.50
+\]
+
+are computational design choices.
+
+They are not:
+
+```text
+biological constants
+
+experimentally derived universal coefficients
+
+clinical utility weights
+
+therapeutic truth values
+```
+
+Therefore Phase 19 should explicitly test ranking sensitivity to alternative weighting schemes.
+
+
+==================================================
+## 7. PHASE 19A — UTILITY WEIGHT SENSITIVITY ANALYSIS
+==================================================
+
+Before new molecular generation, evaluate the robustness of S1 rankings under several predefined weight scenarios.
+
+The primary weighting is:
+
+\[
+W_0
+=
+(0.30,\;0.20,\;0.50)
+\]
+
+corresponding to:
+
+```text
+QED             = 0.30
+
+SA utility      = 0.20
+
+Biological relevance = 0.50
+```
+
+
+==================================================
+## 8. CHEMISTRY-FAVORING SENSITIVITY SCENARIO
+==================================================
+
+Define:
+
+\[
+W_1
+=
+(0.40,\;0.30,\;0.30)
+\]
+
+This scenario places relatively greater emphasis on:
+
+```text
+drug-likeness
+
+synthetic accessibility
+```
+
+and less emphasis on predicted biological relevance.
+
+
+==================================================
+## 9. BIOLOGY-FAVORING SENSITIVITY SCENARIO
+==================================================
+
+Define:
+
+\[
+W_2
+=
+(0.20,\;0.15,\;0.65)
+\]
+
+This scenario places greater emphasis on:
+
+```text
+DrugBank-grounded biological relevance
+```
+
+
+==================================================
+## 10. BALANCED SENSITIVITY SCENARIO
+==================================================
+
+Define:
+
+\[
+W_3
+=
+\left(
+\frac{1}{3},
+\frac{1}{3},
+\frac{1}{3}
+\right)
+\]
+
+This scenario assigns equal contribution to:
+
+```text
+QED
+
+SA utility
+
+biological relevance
+```
+
+
+==================================================
+## 11. WEIGHT NORMALIZATION REQUIREMENT
+==================================================
+
+Every weighting scenario must satisfy:
+
+\[
+w_Q+w_{SA}+w_B=1
+\]
+
+and:
+
+\[
+w_i\ge0
+\]
+
+for all terms.
+
+
+==================================================
+## 12. PRIMARY WEIGHT POLICY
+==================================================
+
+The primary Cycle-2 generation policy remains:
+
+\[
+W_0=(0.30,0.20,0.50)
+\]
+
+Alternative weight schemes are used only for:
+
+```text
+sensitivity analysis
+
+ranking robustness evaluation
+```
+
+They do not replace the primary utility after inspecting the results.
+
+
+==================================================
+## 13. AVOID POST-HOC WEIGHT SELECTION
+==================================================
+
+Do not:
+
+```text
+generate molecules
+
+inspect which weight combination produces the most attractive results
+
+then declare that weighting scheme the primary model
+```
+
+That would introduce post-hoc optimization.
+
+Weight scenarios should be declared before Cycle-2 generation.
+
+
+==================================================
+## 14. RANKING ROBUSTNESS
+==================================================
+
+Compare candidate ranking under:
+
+\[
+W_0
+\]
+
+against each alternative:
+
+\[
+W_1,\;W_2,\;W_3
+\]
+
+
+Recommended metrics:
+
+```text
+Spearman rank correlation
+
+Kendall rank correlation
+
+Top-10 overlap
+
+Top-20 overlap
+```
+
+
+==================================================
+## 15. SPEARMAN RANK STABILITY
+==================================================
+
+For weighting:
+
+\[
+W_j
+\]
+
+calculate:
+
+\[
+\rho_j
+=
+Spearman
+(
+Rank_{W_0},
+Rank_{W_j}
+)
+\]
+
+
+==================================================
+## 16. KENDALL RANK STABILITY
+==================================================
+
+Calculate:
+
+\[
+\tau_j
+=
+Kendall
+(
+Rank_{W_0},
+Rank_{W_j}
+)
+\]
+
+
+==================================================
+## 17. TOP-K OVERLAP
+==================================================
+
+For example:
+
+\[
+Top10Overlap(W_0,W_j)
+=
+\frac{
+|
+Top10(W_0)
+\cap
+Top10(W_j)
+|
+}{
+10
+}
+\]
+
+This measures whether the most preferred candidates remain stable under reasonable changes in weight assumptions.
+
+
+==================================================
+## 18. INTERPRETATION OF SENSITIVITY
+==================================================
+
+High ranking stability indicates:
+
+```text
+candidate preference is relatively robust
+to reasonable weighting changes
+```
+
+Low ranking stability indicates:
+
+```text
+candidate prioritization is highly dependent
+on subjective weighting assumptions
+```
+
+Neither automatically means the model is valid or invalid.
+
+The result should be reported transparently.
+
+
+==================================================
+## 19. PHASE 19B — K1-BASED S1 RE-EVALUATION
+==================================================
+
+Before selecting Cycle-2 seeds, evaluate the 50 S1 candidates using the accepted K1 state.
+
+For each candidate calculate:
+
+```text
+K1 deterministic latent representation
+
+K1 biological relevance
+
+QED
+
+SA utility
+
+primary utility
+
+MC-dropout uncertainty
+
+Pareto information where available
+```
+
+
+==================================================
+## 20. K1 LATENT REPRESENTATION
+==================================================
+
+For candidate:
+
+\[
+i
+\]
+
+calculate:
+
+\[
+z_i^{K_1}
+=
+\mu_i^{(1)}
+\]
+
+using:
+
+\[
+\theta_E^{(1)}
+\]
+
+in deterministic mode.
+
+
+==================================================
+## 21. WHY DETERMINISTIC LATENTS SHOULD BE USED
+==================================================
+
+Generation seeds should not be defined from random VAE sampling.
+
+Therefore use:
+
+\[
+z=\mu
+\]
+
+to establish reproducible latent anchors.
+
+
+==================================================
+## 22. SEED CANDIDATE SUBSET
+==================================================
+
+Define:
+
+\[
+S_1^{seed}
+\subset S_1
+\]
+
+as the subset used to generate Cycle-2 molecules.
+
+
+==================================================
+## 23. DO NOT USE ALL 50 CANDIDATES EQUALLY
+==================================================
+
+Not every S1 candidate should contribute equally to generation.
+
+Cycle-2 seed selection should consider:
+
+```text
+K1 primary utility
+
+structural diversity
+
+biological relevance
+
+synthetic accessibility
+
+drug-likeness
+
+MC-dropout uncertainty
+```
+
+
+==================================================
+## 24. DO NOT USE ONLY THE TOP FEW CANDIDATES
+==================================================
+
+Selecting only the highest-scoring molecules could cause:
+
+```text
+latent-space collapse
+
+structural convergence
+
+loss of chemical diversity
+
+premature exploitation
+```
+
+Therefore seed selection should be:
+
+**high-value and diversity-aware**.
+
+
+==================================================
+## 25. RECOMMENDED SEED COUNT
+==================================================
+
+A practical baseline is approximately:
+
+\[
+10-20
+\]
+
+Cycle-2 latent seeds from the 50 S1 candidates.
+
+The exact count should be explicitly recorded.
+
+
+==================================================
+## 26. DIVERSITY-AWARE SELECTION
+==================================================
+
+Seed selection should aim to preserve structural diversity.
+
+A possible procedure is:
+
+```text
+rank by K1 primary utility
+
+retain a high-value candidate pool
+
+calculate molecular fingerprints
+
+apply similarity thresholding or clustering
+
+select representative molecules from distinct chemical regions
+```
+
+
+==================================================
+## 27. SEED PROVENANCE
+==================================================
+
+For every selected seed record:
+
+```text
+candidate_id
+
+canonical_smiles
+
+K1 utility
+
+K1 biological relevance
+
+K1 uncertainty
+
+QED
+
+SA utility
+
+primary utility rank
+
+sensitivity ranking
+
+diversity cluster
+
+selection reason
+```
+
+
+==================================================
+## 28. PHASE 19C — LATENT SEARCH STRATEGY
+==================================================
+
+Cycle-2 generation should combine:
+
+```text
+exploitation
+
+interpolation
+
+exploration
+```
+
+rather than using a single latent-search mechanism.
+
+
+==================================================
+## 29. EXPLOITATION BRANCH
+==================================================
+
+For selected seed latent:
+
+\[
+z_i
+\]
+
+generate nearby latent points:
+
+\[
+z'
+=
+z_i
++
+\epsilon
+\]
+
+where:
+
+\[
+\epsilon
+\sim
+\mathcal N(0,\sigma_{local}^2I)
+\]
+
+
+Use relatively small:
+
+\[
+\sigma_{local}
+\]
+
+to search near high-value molecules.
+
+
+==================================================
+## 30. EXPLOITATION PURPOSE
+==================================================
+
+The exploitation branch aims to:
+
+```text
+retain the learned molecular characteristics
+
+while searching local latent neighborhoods
+for improved variants
+```
+
+
+==================================================
+## 31. MULTIPLE LOCAL PERTURBATION SCALES
+==================================================
+
+A stronger implementation may use several predefined local scales.
+
+For example:
+
+```text
+small perturbation
+
+medium perturbation
+```
+
+Each generated molecule should record which scale produced it.
+
+
+==================================================
+## 32. INTERPOLATION BRANCH
+==================================================
+
+For two diverse seed latents:
+
+\[
+z_i
+\]
+
+and:
+
+\[
+z_j
+\]
+
+construct:
+
+\[
+z_{\alpha}
+=
+(1-\alpha)z_i
++
+\alpha z_j
+\]
+
+where:
+
+\[
+0<\alpha<1
+\]
+
+
+==================================================
+## 33. WHY INTERPOLATION IS USEFUL
+==================================================
+
+Interpolation explores latent regions between promising but chemically distinct molecules.
+
+It may identify representations combining features from both parent regions.
+
+
+==================================================
+## 34. INTERPOLATION PARENT POLICY
+==================================================
+
+Interpolation parents should ideally be:
+
+```text
+high-value
+
+but structurally diverse
+```
+
+Do not interpolate only nearly identical molecules.
+
+
+==================================================
+## 35. INTERPOLATION PROVENANCE
+==================================================
+
+For every interpolated latent record:
+
+```text
+parent_candidate_1
+
+parent_candidate_2
+
+alpha
+
+parent utilities
+
+parent uncertainties
+
+parent diversity relationship
+```
+
+
+==================================================
+## 36. EXPLORATION BRANCH
+==================================================
+
+A broader exploration branch should search beyond the immediate neighborhoods of the highest-ranked molecules.
+
+This may use:
+
+```text
+larger latent perturbation
+
+diverse low-correlation seeds
+
+uncertainty-aware seed selection
+
+broader interpolation
+```
+
+
+==================================================
+## 37. WHY EXPLORATION IS REQUIRED
+==================================================
+
+Pure exploitation can cause:
+
+```text
+premature convergence
+
+loss of novelty
+
+repeated generation of similar chemical scaffolds
+```
+
+Therefore Cycle 2 should preserve controlled exploration.
+
+
+==================================================
+## 38. EXPLORATION DOES NOT MEAN RANDOM SEARCH
+==================================================
+
+Exploration should remain connected to the accepted K1 latent space.
+
+It should not simply sample arbitrary extreme vectors without methodological justification.
+
+
+==================================================
+## 39. OPTIONAL UNCERTAINTY-AWARE ACQUISITION
+==================================================
+
+For seed analysis, an uncertainty-aware acquisition score may be defined:
+
+\[
+A(c)
+=
+U(c)
++
+\kappa\sigma(c)
+\]
+
+where:
+
+\[
+\kappa>0
+\]
+
+controls the exploration bonus.
+
+
+==================================================
+## 40. ACQUISITION INTERPRETATION
+==================================================
+
+The term:
+
+\[
+\kappa\sigma(c)
+\]
+
+does not mean uncertainty is biologically desirable.
+
+It provides a computational exploration incentive.
+
+
+==================================================
+## 41. ACQUISITION SCORE SHOULD NOT REPLACE PRIMARY UTILITY
+==================================================
+
+Primary exploitation ranking remains:
+
+\[
+U(c)
+\]
+
+Acquisition is used for:
+
+```text
+exploration
+
+seed diversification
+
+uncertainty-aware sampling
+```
+
+
+==================================================
+## 42. GENERATION ALLOCATION
+==================================================
+
+A reasonable baseline Cycle-2 allocation may be:
+
+```text
+60% local exploitation
+
+25% interpolation
+
+15% broader exploration
+```
+
+These percentages are design parameters.
+
+They are not universal constants.
+
+
+==================================================
+## 43. EXAMPLE RAW GENERATION SIZE
+==================================================
+
+If approximately:
+
+\[
+1000
+\]
+
+raw Cycle-2 decoder outputs are desired, this could correspond to roughly:
+
+```text
+600 exploitation outputs
+
+250 interpolation outputs
+
+150 exploration outputs
+```
+
+The final implementation may adjust the total number based on computational resources.
+
+
+==================================================
+## 44. PHASE 19D — FROZEN DECODER GENERATION
+==================================================
+
+Every Cycle-2 latent point is decoded using:
+
+\[
+\theta_D^*
+\]
+
+The decoder remains frozen.
+
+
+==================================================
+## 45. WHY DECODER FREEZING IS MAINTAINED
+==================================================
+
+No decoder adaptation or decoder Fisher reference was established during Cycle 1.
+
+Therefore Phase 19 should not modify:
+
+\[
+\theta_D^*
+\]
+
+
+==================================================
+## 46. LATENT-DECODER COMPATIBILITY
+==================================================
+
+Phase 18 showed acceptable latent compatibility.
+
+However, Phase 19 should continue to monitor whether K1-derived latent vectors decode successfully.
+
+
+==================================================
+## 47. DECODER SUCCESS METRICS
+==================================================
+
+For every latent sample record:
+
+```text
+decoder success
+
+sequence generation success
+
+valid token termination
+
+SMILES parsing success
+
+canonicalization success
+```
+
+
+==================================================
+## 48. DECODER COMPATIBILITY FAILURE SIGNAL
+==================================================
+
+A large increase in:
+
+```text
+decoder failures
+
+invalid SMILES
+
+truncated outputs
+
+malformed sequences
+```
+
+could indicate latent-decoder incompatibility despite Phase-18 readiness.
+
+
+==================================================
+## 49. GENERATED SEQUENCE PROCESSING
+==================================================
+
+Each decoder output should undergo:
+
+```text
+token reconstruction
+
+SMILES reconstruction
+
+RDKit parsing
+
+canonical SMILES generation
+```
+
+
+==================================================
+## 50. RAW GENERATION DOES NOT EQUAL CHEMICAL VALIDITY
+==================================================
+
+Phase 19 should distinguish:
+
+```text
+decoder-generated sequence
+
+from
+
+chemically eligible molecule
+```
+
+Full chemical eligibility screening belongs to Phase 20.
+
+
+==================================================
+## 51. BASIC PHASE-19 PARSING FILTER
+==================================================
+
+Phase 19 should nevertheless remove outputs that cannot be parsed into a molecular structure.
+
+At minimum:
+
+```text
+empty sequence
+
+decoder failure
+
+SMILES parse failure
+
+canonicalization failure
+```
+
+should be excluded from the raw candidate pool.
+
+
+==================================================
+## 52. WITHIN-CYCLE DUPLICATE REMOVAL
+==================================================
+
+Cycle-2 generated structures should be canonicalized.
+
+Candidates with identical canonical SMILES should be deduplicated.
+
+
+==================================================
+## 53. CYCLE-1 OVERLAP
+==================================================
+
+Cycle-2 candidates should be compared against the complete Cycle-1 generated candidate set:
+
+\[
+C_1
+\]
+
+If exact canonical overlap occurs, it should be recorded.
+
+
+==================================================
+## 54. DRUGBANK OVERLAP
+==================================================
+
+Cycle-2 structures should also be compared against the original DrugBank-derived baseline corpus.
+
+Exact overlap should be recorded.
+
+
+==================================================
+## 55. IMPORTANT NOVELTY DISTINCTION
+==================================================
+
+Phase 19 may record:
+
+```text
+exact duplicate status
+
+exact Cycle-1 overlap
+
+exact DrugBank overlap
+```
+
+but detailed novelty screening remains a Phase-20 function.
+
+
+==================================================
+## 56. CYCLE-2 CANDIDATE IDENTIFIERS
+==================================================
+
+Use identifiers such as:
+
+```text
+CYCLE02_CAND000001
+
+CYCLE02_CAND000002
+
+CYCLE02_CAND000003
+```
+
+Do not reuse Cycle-1 IDs.
+
+
+==================================================
+## 57. GENERATION PROVENANCE
+==================================================
+
+Every raw generated candidate should record:
+
+```text
+candidate_id
+
+cycle
+
+canonical_smiles
+
+generation_branch
+
+seed_candidate_id
+
+seed_K1_utility
+
+seed_K1_uncertainty
+
+seed_latent_norm
+
+perturbation_scale
+
+interpolation_parent_1
+
+interpolation_parent_2
+
+interpolation_alpha
+
+decoder_sampling_temperature
+
+decoder_seed
+
+generation_index
+```
+
+
+==================================================
+## 58. WHY PROVENANCE IS IMPORTANT
+==================================================
+
+Full provenance allows later analysis of:
+
+```text
+which seed regions produced valid molecules
+
+which generation branches produced novel molecules
+
+which perturbation scales were productive
+
+which parent combinations were successful
+```
+
+This is important for both:
+
+```text
+research reproducibility
+
+and
+
+closed-loop patent architecture
+```
+
+
+==================================================
+## 59. CYCLE-2 RAW CANDIDATE SET
+==================================================
+
+After generation and basic parsing/deduplication define:
+
+\[
+C_2^{raw}
+\]
+
+as the raw Cycle-2 candidate pool.
+
+
+==================================================
+## 60. CYCLE-2 UNIQUE CANDIDATE SET
+==================================================
+
+After exact canonical duplicate removal define:
+
+\[
+C_2
+\]
+
+as the unique Cycle-2 candidate set prepared for Phase 20.
+
+
+==================================================
+## 61. GENERATION BRANCH STATISTICS
+==================================================
+
+Report for each branch:
+
+```text
+number attempted
+
+number decoded
+
+number parseable
+
+number canonicalized
+
+number unique
+
+number duplicated
+
+number overlapping Cycle 1
+
+number overlapping DrugBank
+```
+
+
+==================================================
+## 62. DECODER SUCCESS RATE
+==================================================
+
+Calculate:
+
+\[
+DecoderSuccessRate
+=
+\frac{
+N_{successfully\ decoded}
+}{
+N_{attempted}
+}
+\]
+
+
+==================================================
+## 63. PARSE SUCCESS RATE
+==================================================
+
+Calculate:
+
+\[
+ParseSuccessRate
+=
+\frac{
+N_{RDKit\ parseable}
+}{
+N_{decoded}
+}
+\]
+
+
+==================================================
+## 64. UNIQUE YIELD
+==================================================
+
+Calculate:
+
+\[
+UniqueYield
+=
+\frac{
+N_{unique\ Cycle2}
+}{
+N_{attempted}
+}
+\]
+
+
+==================================================
+## 65. CYCLE-1 OVERLAP RATE
+==================================================
+
+Calculate:
+
+\[
+Cycle1OverlapRate
+=
+\frac{
+N_{exact\ Cycle1\ matches}
+}{
+N_{canonicalized}
+}
+\]
+
+
+==================================================
+## 66. DRUGBANK OVERLAP RATE
+==================================================
+
+Calculate:
+
+\[
+DrugBankOverlapRate
+=
+\frac{
+N_{exact\ DrugBank\ matches}
+}{
+N_{canonicalized}
+}
+\]
+
+
+==================================================
+## 67. WEIGHT-SENSITIVITY OUTPUTS
+==================================================
+
+Recommended files:
+
+```text
+phase19_utility_weight_scenarios.csv
+
+phase19_S1_weight_sensitivity_scores.csv
+
+phase19_weight_sensitivity_rank_correlations.csv
+
+phase19_weight_sensitivity_topK_overlap.csv
+```
+
+
+==================================================
+## 68. SEED-SELECTION OUTPUTS
+==================================================
+
+Recommended files:
+
+```text
+phase19_cycle2_seed_candidates.csv
+
+phase19_seed_diversity_matrix.csv
+
+phase19_seed_selection_summary.json
+```
+
+
+==================================================
+## 69. LATENT-SEARCH OUTPUTS
+==================================================
+
+Recommended files:
+
+```text
+phase19_exploitation_latent_manifest.csv
+
+phase19_interpolation_latent_manifest.csv
+
+phase19_exploration_latent_manifest.csv
+```
+
+
+==================================================
+## 70. GENERATION OUTPUTS
+==================================================
+
+Recommended files:
+
+```text
+phase19_cycle2_raw_generation.csv
+
+phase19_cycle2_generation_manifest.csv
+
+phase19_cycle2_unique_candidates.csv
+
+phase19_cycle2_duplicate_summary.csv
+
+phase19_cycle2_generation_statistics.csv
+```
+
+
+==================================================
+## 71. PHASE-19 CONFIGURATION FILE
+==================================================
+
+Recommended:
+
+```text
+phase19_generation_config.json
+```
+
+
+Record:
+
+```text
+cycle number
+
+K1 encoder checkpoint
+
+frozen decoder checkpoint
+
+K1 predictor checkpoint
+
+Phase-18 readiness source
+
+primary utility weights
+
+sensitivity weight scenarios
+
+seed count
+
+seed diversity policy
+
+exploitation fraction
+
+interpolation fraction
+
+exploration fraction
+
+latent perturbation scales
+
+interpolation alpha policy
+
+decoder temperature
+
+number of generation attempts
+
+random seed
+```
+
+
+==================================================
+## 72. PHASE-19 QC FILES
+==================================================
+
+Recommended:
+
+```text
+phase19_generation_qc_summary.csv
+
+phase19_generation_qc_summary.json
+```
+
+
+==================================================
+## 73. COMPLETION CRITERIA
+==================================================
+
+Phase 19 is complete when:
+
+1. Phase-18 `Ready_Cycle2=True` is verified.
+
+2. Accepted K1 encoder is loaded.
+
+3. Accepted K1 predictor is loaded.
+
+4. Frozen baseline decoder is loaded.
+
+5. Primary utility weights are recorded.
+
+6. Alternative sensitivity weights are predefined.
+
+7. All weight scenarios sum to one.
+
+8. S1 candidates are re-evaluated under K1.
+
+9. Sensitivity scores are calculated.
+
+10. Spearman rank sensitivity is calculated.
+
+11. Kendall rank sensitivity is calculated.
+
+12. Top-10 overlap is calculated.
+
+13. Top
+
+=========================
 ---
 
 # Phase 20 — UCB Active Learning Acquisition
