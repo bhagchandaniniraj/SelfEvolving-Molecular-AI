@@ -24809,39 +24809,2288 @@ PHASE 23
 Cycle-2 Continual Adaptation
 with EWC
 
+===========================================
+PHASE 22 — DYNAMIC RE-ENCODING AND LATENT-MANIFOLD INTEGRATION OF THE SELECTED CYCLE-2 FEEDBACK BATCH
 
 
-# Phase 22 — Closed-Loop Parameter Adaptation
+==================================================
+1. PHASE OBJECTIVE
+==================================================
 
-The model should then adapt to the prioritized candidate batch.
+Phase 22 dynamically re-encodes the finalized Cycle-2 feedback batch:
 
-The adaptation objective can conceptually combine:
+B2
 
-\[
-L_{adapt}
+selected in Phase 21.
+
+The authoritative Phase-21 feedback batch is:
+
+phase21_feedback_batch_B2.csv
+
+
+Expected batch size:
+
+|B2| = 50
+
+
+The purpose of Phase 22 is to determine where the newly prioritized Cycle-2 candidate information lies within the CURRENT accepted K1 latent representation.
+
+
+For each selected candidate:
+
+c_i in B2
+
+
+calculate:
+
+z_i^(K1)
 =
-L_{task}
+mu_thetaE(1)(c_i)
+
+
+The resulting pre-adaptation latent batch is:
+
+Z_B2^(K1)
+
+
+This becomes the formal reference representation of B2 before Cycle-2 parameter adaptation.
+
+
+==================================================
+2. WHY PHASE 22 IS REQUIRED
+==================================================
+
+Phase 21 identifies which molecules should be fed back into the next closed-loop learning cycle.
+
+
+However, selecting B2 alone does not yet establish where those molecules lie in the current learned representation.
+
+
+Phase 22 therefore performs:
+
+B2
+
+        ↓
+
+current accepted encoder theta_E^(1)
+
+        ↓
+
+deterministic latent representations
+
+        ↓
+
+Z_B2^(K1)
+
+        ↓
+
+latent-manifold diagnostics
+
+        ↓
+
+pre-adaptation reference state
+
+
+This creates a measurable representation snapshot before any model update occurs.
+
+
+==================================================
+3. IMPORTANT METHODOLOGICAL DISTINCTION
+==================================================
+
+Phase 22 is NOT a training phase.
+
+
+Phase 22 does NOT change:
+
+theta_E^(1)
+
+theta_P^(1)
+
+theta_D*
+
+
+Therefore:
+
+re-encoding
+
+is not identical to:
+
+representation learning
+
+
+Phase 22 only determines the position of selected Cycle-2 candidates within the CURRENT K1 manifold.
+
+
+Actual representation learning occurs later in Phase 23 when:
+
+theta_E^(1)
+
+changes to:
+
+theta_E^(2)
+
+
+==================================================
+4. CURRENT PIPELINE POSITION
+==================================================
+
+The finalized sequence is:
+
+Phase 19
+=
+Cycle-2 molecular generation
+
+        ↓
+
+Phase 20
+=
+chemical eligibility,
+uniqueness and novelty screening
+
+        ↓
+
+C2_eligible = 967
+
+        ↓
+
+Phase 21
+=
+K1 evaluation
 +
-\beta L_{latent}
+30-pass MC-Dropout
 +
-\lambda L_{EWC}
-\]
+utility uncertainty
++
+UCB acquisition
++
+diversity-aware feedback selection
+
+        ↓
+
+B2 = 50
+
+        ↓
+
+PHASE 22
+=
+dynamic re-encoding
++
+latent-manifold integration
++
+pre-adaptation latent snapshot
+
+        ↓
+
+Z_B2^(K1)
+
+        ↓
+
+Phase 23
+=
+Cycle-2 continual parameter adaptation
+
+        ↓
+
+theta_E^(1)
+→
+theta_E^(2)
+
+theta_P^(1)
+→
+theta_P^(2)
+
+
+==================================================
+5. AUTHORITATIVE INPUT
+==================================================
+
+Primary input:
+
+phase21_feedback_batch_B2.csv
+
+
+Expected size:
+
+50
+
+
+The file must be treated as frozen Phase-21 output.
+
+
+No candidate should be:
+
+added
+
+removed
+
+re-ranked
+
+replaced
+
+renumbered
+
+
+during Phase 22.
+
+
+==================================================
+6. AUTHORITATIVE CANDIDATE IDENTITY
+==================================================
+
+Preserve:
+
+candidate_id
+
+canonical_smiles
+
+
+The candidate IDs must remain the original Cycle-2 IDs.
+
+
+Examples:
+
+CYCLE02_CAND000802
+
+CYCLE02_CAND000656
+
+...
+
+
+No new Phase-22 candidate IDs should be created.
+
+
+==================================================
+7. PRESERVE PHASE-21 ACQUISITION METADATA
+==================================================
+
+For every B2 candidate retain:
+
+primary_UCB_rank
+
+primary_UCB_score
+
+expected_utility_mu
+
+utility_uncertainty_sigma
+
+biological_relevance_mean
+
+biological_relevance_std
+
+QED
+
+SAUtility
+
+Pareto status
+
+diversity-selection order
+
+minimum Tanimoto distance at selection
+
+
+These values are Phase-21 selection provenance and should not be recalculated unless explicitly used as an audit check.
+
+
+==================================================
+8. CURRENT KNOWLEDGE STATE
+==================================================
+
+The current accepted knowledge state remains:
+
+K1
+
 
 where:
 
-### \(L_{task}\)
+K1
+=
+{
+theta_E^(1),
+theta_D*,
+theta_P^(1),
+F_E,
+F_P,
+Z0,
+S1,
+B2
+}
 
-Learns from prioritized candidate feedback.
 
-### \(L_{latent}\)
+For Phase 22, the primary active model component is:
 
-Maintains the latent/variational representation.
+theta_E^(1)
 
-### \(L_{EWC}\)
 
-Protects parameters important for previously learned chemical knowledge.
+The predictor and decoder remain frozen and are not required for primary Phase-22 representation extraction.
 
-Your earlier implementation used a task term, a latent regularization term, and Fisher-weighted EWC during adaptation. Pasted text
+
+==================================================
+9. CURRENT ENCODER CHECKPOINT
+==================================================
+
+Use:
+
+phase17_cycle1_adapted_encoder.pt
+
+
+This is:
+
+theta_E^(1)
+
+
+Do NOT use:
+
+phase12_thetaE_baseline_encoder.pt
+
+
+for the primary B2 latent representation.
+
+
+The objective is to place B2 into the currently adapted K1 manifold, not the original K0 manifold.
+
+
+==================================================
+10. ENCODER ARCHITECTURE
+==================================================
+
+Reuse the exact accepted encoder architecture:
+
+node dimension = 21
+
+edge dimension = 14
+
+hidden dimension = 64
+
+latent dimension = 32
+
+EGNN layers = 2
+
+coordinate update scale = 0.10
+
+
+Expected parameter count:
+
+70,274
+
+
+==================================================
+11. EXACT PHASE-7 GRAPH SCHEMA
+==================================================
+
+Every B2 molecule must be reconstructed using the exact Phase-7 graph representation.
+
+
+Node feature dimension:
+
+21
+
+
+Edge feature dimension:
+
+14
+
+
+No feature redesign is allowed.
+
+
+==================================================
+12. NODE FEATURES
+==================================================
+
+The 21 node features remain:
+
+1. atomic_number
+
+2. degree
+
+3. formal_charge
+
+4. aromatic
+
+5. in_ring
+
+6. hydrogen_neighbor_count
+
+7. atomic_mass
+
+8. implicit_valence
+
+9. explicit_valence
+
+
+Hybridization one-hot:
+
+10. UNSPECIFIED
+
+11. S
+
+12. SP
+
+13. SP2
+
+14. SP3
+
+15. SP3D
+
+16. SP3D2
+
+17. OTHER
+
+
+Chirality one-hot:
+
+18. CHI_UNSPECIFIED
+
+19. CHI_TETRAHEDRAL_CW
+
+20. CHI_TETRAHEDRAL_CCW
+
+21. CHI_OTHER
+
+
+==================================================
+13. EDGE FEATURES
+==================================================
+
+The 14 edge features remain:
+
+
+Bond type one-hot:
+
+1. SINGLE
+
+2. DOUBLE
+
+3. TRIPLE
+
+4. AROMATIC
+
+5. OTHER
+
+
+Additional bond features:
+
+6. is_conjugated
+
+7. is_in_ring
+
+
+Stereo one-hot:
+
+8. STEREONONE
+
+9. STEREOANY
+
+10. STEREOZ
+
+11. STEREOE
+
+12. STEREOCIS
+
+13. STEREOTRANS
+
+14. OTHER
+
+
+==================================================
+14. 3D GEOMETRY POLICY
+==================================================
+
+Use the exact established 3D graph-construction procedure.
+
+
+For every B2 candidate:
+
+1. Parse canonical SMILES.
+
+2. Add explicit hydrogens.
+
+3. Generate coordinates using ETKDGv3.
+
+4. Use:
+
+random seed = 42
+
+useRandomCoords = False
+
+
+5. If embedding fails, retry with:
+
+useRandomCoords = True
+
+
+6. Attempt MMFF94 optimization.
+
+7. If MMFF94 is unavailable or fails, attempt UFF.
+
+8. Center coordinates around the molecular centroid.
+
+9. Construct bidirectional molecular edges.
+
+
+==================================================
+15. WHY PHASE-22 GRAPH CONSTRUCTION SHOULD SUCCEED
+==================================================
+
+Every B2 candidate came from:
+
+C2_scorable
+
+
+Therefore each B2 candidate already successfully completed Phase-21 graph construction.
+
+
+Expected:
+
+graph construction success = 50/50
+
+
+Any failure in Phase 22 should therefore be treated seriously because it would indicate a reproducibility mismatch.
+
+
+==================================================
+16. EXACT PHASE-9 NORMALIZATION
+==================================================
+
+Reuse the frozen Phase-9 node-feature normalization.
+
+
+Standardized features remain:
+
+atomic_number
+
+degree
+
+formal_charge
+
+hydrogen_neighbor_count
+
+atomic_mass
+
+implicit_valence
+
+explicit_valence
+
+
+Do NOT recalculate normalization statistics using B2.
+
+
+==================================================
+17. NORMALIZATION REPRODUCIBILITY
+==================================================
+
+Phase-22 feature normalization must use the exact same:
+
+means
+
+standard deviations
+
+feature indices
+
+feature order
+
+
+as previous phases.
+
+
+No Cycle-2-specific normalization is allowed.
+
+
+==================================================
+18. DETERMINISTIC ENCODER MODE
+==================================================
+
+Set:
+
+encoder.eval()
+
+
+All parameters:
+
+requires_grad = False
+
+
+Use:
+
+torch.no_grad()
+
+
+during encoding.
+
+
+No gradient graph should be constructed.
+
+
+==================================================
+19. DETERMINISTIC LATENT POLICY
+==================================================
+
+For every candidate:
+
+c_i
+
+
+encoder produces:
+
+mu_i
+
+and:
+
+logvar_i
+
+
+The Phase-22 representation must be:
+
+z_i^(K1)
+=
+mu_i
+
+
+Do NOT sample:
+
+z
+=
+mu
++
+sigma epsilon
+
+
+during Phase 22.
+
+
+==================================================
+20. WHY MU IS USED
+==================================================
+
+The objective is to obtain a reproducible latent representation.
+
+
+Using stochastic latent sampling would mix:
+
+representation position
+
+with:
+
+variational sampling noise
+
+
+Therefore:
+
+z = mu
+
+
+is the only accepted primary representation.
+
+
+==================================================
+21. LATENT DIMENSION
+==================================================
+
+Require:
+
+latent dimension = 32
+
+
+For each B2 candidate:
+
+z_i^(K1)
+in
+R^32
+
+
+==================================================
+22. LATENT FINITENESS
+==================================================
+
+Every latent component must be finite.
+
+
+Reject:
+
+NaN
+
++infinity
+
+-infinity
+
+
+If any latent value is non-finite, record:
+
+NONFINITE_LATENT
+
+
+==================================================
+23. PRE-ADAPTATION SNAPSHOT
+==================================================
+
+The central Phase-22 output is:
+
+Z_B2^(K1)
+
+
+This represents:
+
+the selected Cycle-2 feedback batch under the current K1 encoder before any Cycle-2 model adaptation.
+
+
+Recommended notation:
+
+Z_B2_pre
+
+
+or:
+
+Z_B2^(K1)
+
+
+Preferred formal notation:
+
+Z_B2^(K1)
+
+
+==================================================
+24. WHY THE SNAPSHOT MUST BE SAVED
+==================================================
+
+Phase 23 will adapt:
+
+theta_E^(1)
+→
+theta_E^(2)
+
+
+After adaptation, B2 can be re-encoded again:
+
+Z_B2^(K2)
+
+
+Then representation change can be measured:
+
+Delta Z_B2
+=
+Z_B2^(K2)
+-
+Z_B2^(K1)
+
+
+Without saving the Phase-22 pre-adaptation snapshot, this comparison becomes less defensible.
+
+
+==================================================
+25. RAW LATENT MATRIX
+==================================================
+
+Save one 32-dimensional latent vector per B2 candidate.
+
+
+Recommended output:
+
+phase22_B2_K1_latent_matrix.csv
+
+
+Columns:
+
+candidate_id
+
+latent_01
+
+latent_02
+
+...
+
+latent_32
+
+
+==================================================
+26. LATENT NORM
+==================================================
+
+For every candidate calculate:
+
+||z_i||_2
+
+
+Record as:
+
+latent_norm
+
+
+This provides a basic scale diagnostic.
+
+
+==================================================
+27. PHASE-12 LATENT NORMALIZATION
+==================================================
+
+Also apply the frozen Phase-12 predictor latent normalization.
+
+
+For latent dimension k:
+
+z_standardized,k
+=
+(
+z_k
+-
+mu_train,k
+)
+/
+sigma_safe,k
+
+
+Use the exact frozen:
+
+phase12_predictor_latent_normalization.json
+
+
+Do NOT fit new latent statistics.
+
+
+==================================================
+28. STANDARDIZED LATENT MATRIX
+==================================================
+
+Save:
+
+phase22_B2_K1_standardized_latent_matrix.csv
+
+
+Columns:
+
+candidate_id
+
+standardized_latent_01
+
+...
+
+standardized_latent_32
+
+
+==================================================
+29. WHY STANDARDIZED LATENTS ARE USEFUL
+==================================================
+
+Different latent dimensions may operate at different scales.
+
+
+Standardized coordinates make it possible to compare B2 against the baseline latent distribution in a scale-normalized way.
+
+
+==================================================
+30. BASELINE LATENT REFERENCE
+==================================================
+
+Reuse the frozen baseline latent reference:
+
+Z0
+
+
+This represents the accepted pre-adaptation latent reference established earlier in the pipeline.
+
+
+Phase 22 should not rebuild Z0.
+
+
+==================================================
+31. BASELINE LATENT CENTROID
+==================================================
+
+Let:
+
+mu_Z0
+
+
+be the mean baseline latent representation.
+
+
+For every B2 candidate calculate:
+
+d_centroid(i)
+=
+||z_i^(K1) - mu_Z0||_2
+
+
+This measures displacement from the baseline latent center.
+
+
+==================================================
+32. STANDARDIZED RMS DISPLACEMENT
+==================================================
+
+For standardized latent vector:
+
+z_i,std
+
+
+calculate:
+
+RMS_std(i)
+=
+sqrt[
+1/32
+*
+sum_k
+z_i,std,k^2
+]
+
+
+This provides a scale-normalized latent displacement score.
+
+
+==================================================
+33. NEAREST-BASELINE LATENT DISTANCE
+==================================================
+
+For every candidate:
+
+c_i
+
+
+calculate:
+
+d_nearest_Z0(i)
+=
+min_j
+||z_i^(K1) - z_j^(Z0)||_2
+
+
+Also record:
+
+nearest_Z0_reference_id
+
+
+This indicates how close each selected Cycle-2 candidate is to a previously represented latent reference molecule.
+
+
+==================================================
+34. INTERPRETATION OF NEAREST-Z0 DISTANCE
+==================================================
+
+A small distance suggests:
+
+representation near previously represented regions
+
+
+A larger distance suggests:
+
+representation in a less densely represented region of the baseline latent manifold
+
+
+This is a model-relative statement only.
+
+
+Do NOT interpret latent distance as:
+
+biological novelty
+
+chemical novelty
+
+therapeutic novelty
+
+
+==================================================
+35. OPTIONAL S1 COMPARISON
+==================================================
+
+Where S1 latent representations are available, compare B2 to the previous Cycle-1 feedback population.
+
+
+For every B2 candidate optionally calculate:
+
+nearest_S1_distance
+
+
+and:
+
+distance_to_S1_centroid
+
+
+This helps assess whether Cycle-2 feedback explores regions beyond the previous feedback population.
+
+
+==================================================
+36. PAIRWISE B2 LATENT DISTANCE
+==================================================
+
+Calculate Euclidean distance between all B2 latent vectors.
+
+
+For candidates i and j:
+
+d_latent(i,j)
+=
+||z_i - z_j||_2
+
+
+==================================================
+37. B2 LATENT DISTANCE MATRIX
+==================================================
+
+Save:
+
+phase22_B2_pairwise_latent_distance_matrix.csv
+
+
+Expected shape:
+
+50 x 51
+
+
+where the first column is candidate_id and the remaining 50 columns correspond to pairwise latent distances.
+
+
+==================================================
+38. LATENT-DIVERSITY STATISTICS
+==================================================
+
+For B2 calculate:
+
+mean pairwise latent distance
+
+median pairwise latent distance
+
+minimum pairwise latent distance
+
+maximum pairwise latent distance
+
+
+These quantify the spread of B2 in encoder space.
+
+
+==================================================
+39. CHEMICAL VS LATENT DIVERSITY
+==================================================
+
+Phase 21 already measured:
+
+Morgan/Tanimoto chemical diversity
+
+
+Phase 22 measures:
+
+encoder-space latent diversity
+
+
+These should remain conceptually separate.
+
+
+Chemical diversity:
+
+structure-based
+
+
+Latent diversity:
+
+model-representation-based
+
+
+==================================================
+40. RELATIONSHIP BETWEEN CHEMICAL AND LATENT DIVERSITY
+==================================================
+
+Optionally compare:
+
+Phase-21 Tanimoto distance
+
+against:
+
+Phase-22 latent Euclidean distance
+
+
+This can reveal whether chemical diversity translates into representation diversity.
+
+
+Possible diagnostic:
+
+Spearman correlation between pairwise chemical distance and pairwise latent distance
+
+
+This is optional and diagnostic only.
+
+
+==================================================
+41. ACQUISITION POSITION IN LATENT SPACE
+==================================================
+
+Retain:
+
+primary_UCB_score
+
+expected_utility_mu
+
+utility_uncertainty_sigma
+
+
+with the latent diagnostics.
+
+
+This allows later inspection of whether:
+
+high-UCB candidates
+
+are located near known latent regions
+
+or:
+
+in relatively underrepresented regions.
+
+
+==================================================
+42. DO NOT RE-RANK B2
+==================================================
+
+Phase 22 must NOT change B2 membership.
+
+
+Do not:
+
+remove candidates based on latent distance
+
+add candidates based on latent distance
+
+replace candidates
+
+re-run UCB ranking
+
+run a second acquisition algorithm
+
+
+B2 is frozen from Phase 21.
+
+
+==================================================
+43. LATENT OUTLIER DIAGNOSTIC
+==================================================
+
+Phase 22 may identify latent outliers.
+
+
+Recommended fields:
+
+latent_outlier_flag
+
+standardized_latent_rms
+
+distance_to_Z0_centroid
+
+nearest_Z0_distance
+
+
+However, these are diagnostics only.
+
+
+No B2 candidate should automatically be removed based solely on latent distance.
+
+
+==================================================
+44. OUTLIER THRESHOLD POLICY
+==================================================
+
+If an operational threshold is used, it must be predefined.
+
+
+For example:
+
+standardized_latent_RMS > 1.0
+
+
+may be flagged as:
+
+LATENT_SHIFT_FLAG
+
+
+But this must be described as:
+
+a project-specific monitoring threshold
+
+
+not:
+
+a universal latent validity rule.
+
+
+==================================================
+45. RE-ENCODING SUCCESS POLICY
+==================================================
+
+Expected:
+
+50 B2 candidates loaded
+
+50 graph constructions successful
+
+50 encoder passes successful
+
+50 valid latent vectors produced
+
+
+Anything less than:
+
+50/50
+
+
+requires investigation before Phase 23.
+
+
+==================================================
+46. FAILURE HANDLING
+==================================================
+
+Possible explicit failure reasons:
+
+GRAPH_CONSTRUCTION_FAILED
+
+3D_EMBEDDING_FAILED
+
+ENCODER_FAILED
+
+LATENT_DIMENSION_MISMATCH
+
+NONFINITE_LATENT
+
+NORMALIZATION_FAILED
+
+
+No candidate may silently disappear.
+
+
+==================================================
+47. RE-ENCODING MANIFEST
+==================================================
+
+Save:
+
+phase22_reencoding_manifest.csv
+
+
+Recommended fields:
+
+candidate_id
+
+canonical_smiles
+
+graph_success
+
+graph_failure_reason
+
+encoder_success
+
+encoder_failure_reason
+
+latent_dimension
+
+latent_finite
+
+source_phase
+
+source_batch
+
+encoder_checkpoint
+
+encoding_policy
+
+
+==================================================
+48. CANDIDATE-LEVEL LATENT DIAGNOSTICS
+==================================================
+
+Save:
+
+phase22_B2_latent_diagnostics.csv
+
+
+Suggested columns:
+
+candidate_id
+
+canonical_smiles
+
+primary_UCB_rank
+
+primary_UCB_score
+
+expected_utility_mu
+
+utility_uncertainty_sigma
+
+biological_relevance_mean
+
+qed
+
+sa_utility
+
+latent_norm
+
+standardized_latent_rms
+
+distance_to_Z0_centroid
+
+nearest_Z0_distance
+
+nearest_Z0_reference_id
+
+nearest_S1_distance
+
+distance_to_S1_centroid
+
+latent_outlier_flag
+
+graph_success
+
+encoder_success
+
+
+==================================================
+49. BATCH-LEVEL LATENT SUMMARY
+==================================================
+
+Save:
+
+phase22_B2_latent_distribution_summary.csv
+
+
+Recommended metrics:
+
+B2 candidate count
+
+graph success count
+
+encoder success count
+
+finite latent count
+
+mean latent norm
+
+median latent norm
+
+minimum latent norm
+
+maximum latent norm
+
+mean standardized latent RMS
+
+median standardized latent RMS
+
+maximum standardized latent RMS
+
+mean distance to Z0 centroid
+
+maximum distance to Z0 centroid
+
+mean nearest-Z0 distance
+
+maximum nearest-Z0 distance
+
+mean pairwise latent distance
+
+median pairwise latent distance
+
+minimum pairwise latent distance
+
+maximum pairwise latent distance
+
+
+==================================================
+50. OPTIONAL CHEMICAL-LATENT DIVERSITY COMPARISON
+==================================================
+
+Optional file:
+
+phase22_B2_chemical_latent_diversity_comparison.csv
+
+
+Possible fields:
+
+candidate_i
+
+candidate_j
+
+Tanimoto_distance
+
+latent_distance
+
+
+Optional summary:
+
+Spearman correlation
+
+between:
+
+chemical distance
+
+and:
+
+latent distance
+
+
+==================================================
+51. MODEL FREEZING
+==================================================
+
+Phase 22 must satisfy:
+
+theta_E^(1) unchanged
+
+theta_P^(1) unchanged
+
+theta_D* unchanged
+
+
+No model adaptation is allowed.
+
+
+==================================================
+52. PARAMETER GRADIENT POLICY
+==================================================
+
+Require:
+
+optimizer created = False
+
+backward pass = False
+
+gradient calculation = False
+
+encoder update = False
+
+predictor update = False
+
+decoder update = False
+
+
+==================================================
+53. EWC POLICY
+==================================================
+
+Phase 22 does NOT apply EWC.
+
+
+Therefore:
+
+EWC applied = False
+
+
+EWC belongs to Phase 23 adaptation.
+
+
+==================================================
+54. FISHER POLICY
+==================================================
+
+Phase 22 must NOT:
+
+recalculate F_E
+
+recalculate F_P
+
+modify Fisher tensors
+
+replace theta-star references
+
+
+Existing Phase-13 Fisher artifacts remain frozen.
+
+
+==================================================
+55. CHECKPOINT INTEGRITY
+==================================================
+
+Calculate SHA-256 hashes before and after Phase 22 for:
+
+theta_E*
+
+theta_D*
+
+theta_P*
+
+theta_E^(1)
+
+theta_P^(1)
+
+F_E
+
+F_P
+
+Phase-13 parameter-reference artifact
+
+
+Require:
+
+hash_before
+=
+hash_after
+
+
+==================================================
+56. PHASE-21 INPUT INTEGRITY
+==================================================
+
+Also hash:
+
+phase21_feedback_batch_B2.csv
+
+
+before and after Phase 22.
+
+
+Require:
+
+SHA256_B2_before
+=
+SHA256_B2_after
+
+
+This proves Phase 22 did not modify the authoritative feedback batch.
+
+
+==================================================
+57. PHASE-22 CONFIGURATION FILE
+==================================================
+
+Save:
+
+phase22_reencoding_config.json
+
+
+Recommended fields:
+
+phase = 22
+
+cycle = 2
+
+source batch file
+
+expected B2 size = 50
+
+encoder checkpoint
+
+encoder state = theta_E^(1)
+
+latent dimension = 32
+
+graph schema file
+
+Phase-9 normalization file
+
+Phase-12 latent normalization file
+
+baseline latent reference file
+
+S1 latent reference file if used
+
+deterministic latent = True
+
+latent policy = z = mu
+
+random seed = 42
+
+optimizer = None
+
+backward = False
+
+encoder update = False
+
+predictor update = False
+
+decoder update = False
+
+EWC applied = False
+
+Fisher recalculated = False
+
+
+==================================================
+58. PHASE-22 QC FILES
+==================================================
+
+Save:
+
+phase22_reencoding_qc_summary.csv
+
+phase22_reencoding_qc_summary.json
+
+
+==================================================
+59. PRIMARY OUTPUT FILES
+==================================================
+
+Recommended Phase-22 outputs:
+
+phase22_reencoding_config.json
+
+phase22_reencoding_manifest.csv
+
+phase22_B2_K1_latent_matrix.csv
+
+phase22_B2_K1_standardized_latent_matrix.csv
+
+phase22_B2_latent_diagnostics.csv
+
+phase22_B2_pairwise_latent_distance_matrix.csv
+
+phase22_B2_latent_distribution_summary.csv
+
+phase22_reencoding_qc_summary.csv
+
+phase22_reencoding_qc_summary.json
+
+
+Optional:
+
+phase22_B2_chemical_latent_diversity_comparison.csv
+
+
+==================================================
+60. PRE-ADAPTATION STATE MANIFEST
+==================================================
+
+Recommended additional file:
+
+phase22_pre_adaptation_state_manifest.json
+
+
+This should record:
+
+B2 size
+
+B2 file hash
+
+encoder checkpoint hash
+
+predictor checkpoint hash
+
+decoder checkpoint hash
+
+Fisher hashes
+
+latent matrix hash
+
+standardized latent matrix hash
+
+timestamp
+
+knowledge state = K1
+
+adaptation performed = False
+
+
+==================================================
+61. WHY A PRE-ADAPTATION STATE MANIFEST IS USEFUL
+==================================================
+
+Phase 23 changes model parameters.
+
+
+Therefore Phase 22 should create an immutable record of the exact model and data state immediately before adaptation.
+
+
+This makes later comparisons defensible.
+
+
+==================================================
+62. KNOWLEDGE-STATE NOTATION
+==================================================
+
+Before Phase 23:
+
+K1
+=
+{
+theta_E^(1),
+theta_D*,
+theta_P^(1),
+F_E,
+F_P,
+Z0,
+S1,
+B2
+}
+
+
+Phase 22 adds:
+
+Z_B2^(K1)
+
+
+Therefore an expanded pre-adaptation state can be represented as:
+
+K1_pre2
+=
+{
+K1,
+Z_B2^(K1)
+}
+
+
+This notation is optional.
+
+
+The important point is that B2 now has a frozen representation under K1.
+
+
+==================================================
+63. PHASE-22 COMPLETION CRITERIA
+==================================================
+
+Phase 22 is complete only when:
+
+1. phase21_feedback_batch_B2.csv is loaded.
+
+2. B2 size is verified as 50.
+
+3. B2 candidate IDs are unique.
+
+4. B2 canonical structures are unique.
+
+5. Phase-21 acquisition metadata is preserved.
+
+6. Phase-21 B2 file remains unchanged.
+
+7. Exact Phase-7 node schema is reused.
+
+8. Exact Phase-7 edge schema is reused.
+
+9. Exact Phase-9 normalization is reused.
+
+10. K1 encoder theta_E^(1) is loaded.
+
+11. Encoder parameter count equals 70,274.
+
+12. Encoder is in evaluation mode.
+
+13. Encoder parameters require no gradients.
+
+14. Deterministic z = mu is used.
+
+15. Exact 3D graph-construction policy is reused.
+
+16. All 50 B2 graph constructions succeed.
+
+17. All 50 B2 encoder evaluations succeed.
+
+18. Every latent vector has dimension 32.
+
+19. Every latent vector is finite.
+
+20. Raw K1 latent matrix is saved.
+
+21. Phase-12 latent normalization is reused.
+
+22. Standardized latent matrix is saved.
+
+23. Latent norm is calculated for every candidate.
+
+24. Baseline latent reference Z0 is reused.
+
+25. Distance to Z0 centroid is calculated.
+
+26. Nearest-Z0 latent distance is calculated.
+
+27. Nearest-Z0 reference identity is retained.
+
+28. Standardized latent RMS is calculated.
+
+29. Pairwise B2 latent distance matrix is calculated.
+
+30. Mean pairwise latent distance is calculated.
+
+31. Median pairwise latent distance is calculated.
+
+32. Minimum pairwise latent distance is calculated.
+
+33. Maximum pairwise latent distance is calculated.
+
+34. Optional S1-relative diagnostics are calculated if reference data are available.
+
+35. No B2 candidate is silently removed.
+
+36. Every failure has an explicit reason.
+
+37. B2 membership is unchanged.
+
+38. No acquisition re-ranking occurs.
+
+39. No UCB recalculation changes B2.
+
+40. No new candidate selection occurs.
+
+41. No optimizer is created.
+
+42. No backward pass occurs.
+
+43. No gradients are used for adaptation.
+
+44. No encoder parameter update occurs.
+
+45. No predictor parameter update occurs.
+
+46. No decoder parameter update occurs.
+
+47. No EWC is applied.
+
+48. No Fisher recalculation occurs.
+
+49. K0 checkpoint hashes remain unchanged.
+
+50. K1 checkpoint hashes remain unchanged.
+
+51. Fisher hashes remain unchanged.
+
+52. Phase-21 B2 hash remains unchanged.
+
+53. Pre-adaptation latent snapshot Z_B2^(K1) is saved.
+
+54. Pre-adaptation state manifest is saved.
+
+55. QC summary is generated.
+
+56. Phase 22 is ready for Phase 23.
+
+
+==================================================
+64. EXPECTED PHASE-22 SUCCESS STATE
+==================================================
+
+The ideal Phase-22 result is:
+
+B2 input
+=
+50
+
+
+Graph construction success
+=
+50
+
+
+K1 encoder success
+=
+50
+
+
+Latent vectors
+=
+50 x 32
+
+
+Finite latent vectors
+=
+50
+
+
+B2 modified
+=
+False
+
+
+Encoder modified
+=
+False
+
+
+Predictor modified
+=
+False
+
+
+Decoder modified
+=
+False
+
+
+Fisher modified
+=
+False
+
+
+Adaptation performed
+=
+False
+
+
+==================================================
+65. APPROPRIATE SCIENTIFIC STATEMENTS
+==================================================
+
+It is appropriate to state:
+
+“The finalized Cycle-2 feedback batch was dynamically re-encoded using the accepted K1 encoder.”
+
+
+It is appropriate to state:
+
+“Deterministic pre-adaptation latent representations were generated for all selected Cycle-2 feedback candidates.”
+
+
+It is appropriate to state:
+
+“The resulting Z_B2^(K1) representation serves as the pre-adaptation latent reference for subsequent continual-learning analysis.”
+
+
+It is appropriate to state:
+
+“The selected feedback batch was integrated into the current representation space without modifying model parameters.”
+
+
+==================================================
+66. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+“The encoder learned from B2 during Phase 22.”
+
+
+Do not state:
+
+“The latent manifold changed during Phase 22.”
+
+
+Do not state:
+
+“Phase 22 performs continual learning.”
+
+
+Do not state:
+
+“Phase 22 proves self-learning.”
+
+
+Do not state:
+
+“Latent distance proves biological novelty.”
+
+
+Do not state:
+
+“Large latent displacement proves therapeutic novelty.”
+
+
+==================================================
+67. SELF-EVOLVING SYSTEM INTERPRETATION
+==================================================
+
+Phase 22 contributes to the self-evolving pipeline by creating the bridge between:
+
+candidate prioritization
+
+and:
+
+parameter adaptation
+
+
+The complete logic is:
+
+generate
+
+        ↓
+
+screen
+
+        ↓
+
+evaluate
+
+        ↓
+
+prioritize
+
+        ↓
+
+select B2
+
+        ↓
+
+re-encode B2 under current K1
+
+        ↓
+
+save Z_B2^(K1)
+
+        ↓
+
+adapt model parameters
+
+        ↓
+
+re-encode B2 under K2
+
+        ↓
+
+measure latent change
+
+        ↓
+
+continue closed loop
+
+
+==================================================
+68. PRE/POST ADAPTATION REPRESENTATION ANALYSIS
+==================================================
+
+Phase 22 provides:
+
+Z_B2^(K1)
+
+
+After Phase 23 produces:
+
+theta_E^(2)
+
+
+the same B2 molecules should be re-encoded to produce:
+
+Z_B2^(K2)
+
+
+Then calculate:
+
+Delta z_i
+=
+z_i^(K2)
+-
+z_i^(K1)
+
+
+==================================================
+69. REPRESENTATION-CHANGE METRICS FOR LATER PHASE
+==================================================
+
+Recommended future metrics include:
+
+candidate-level latent L2 drift
+
+candidate-level standardized RMS drift
+
+batch mean latent drift
+
+batch maximum latent drift
+
+pairwise-distance change
+
+centroid shift
+
+nearest-reference shift
+
+
+These belong after adaptation, not during Phase 22.
+
+
+==================================================
+70. WHY PHASE 22 SHOULD REMAIN SEPARATE FROM PHASE 23
+==================================================
+
+Combining re-encoding and adaptation into one phase would weaken the audit trail.
+
+
+Keeping Phase 22 separate ensures:
+
+clean pre-adaptation latent state
+
+known checkpoint state
+
+known B2 composition
+
+known data hashes
+
+known latent representations
+
+
+Then Phase 23 can measure exactly what changed.
+
+
+==================================================
+71. PHASE-22 DATA FLOW
+==================================================
+
+PHASE-21 FROZEN OUTPUT
+
+phase21_feedback_batch_B2.csv
+
+B2 = 50
+
+        ↓
+
+VERIFY B2 HASH
+
+        ↓
+
+PRESERVE
+
+candidate_id
+
+canonical_smiles
+
+UCB metadata
+
+diversity metadata
+
+        ↓
+
+EXACT PHASE-7 GRAPH CONSTRUCTION
+
+        ↓
+
+EXACT PHASE-9 NODE NORMALIZATION
+
+        ↓
+
+CURRENT K1 ENCODER
+
+theta_E^(1)
+
+        ↓
+
+DETERMINISTIC ENCODING
+
+z_i
+=
+mu_i^(1)
+
+        ↓
+
+RAW PRE-ADAPTATION LATENT MATRIX
+
+Z_B2^(K1)
+
+        ↓
+
+PHASE-12 LATENT STANDARDIZATION
+
+        ↓
+
+STANDARDIZED LATENT MATRIX
+
+        ↓
+
+LATENT NORM
+
+        ↓
+
+DISTANCE TO Z0 CENTROID
+
+        ↓
+
+NEAREST Z0 DISTANCE
+
+        ↓
+
+OPTIONAL S1 DISTANCE
+
+        ↓
+
+PAIRWISE B2 LATENT DISTANCES
+
+        ↓
+
+LATENT DISTRIBUTION SUMMARY
+
+        ↓
+
+VERIFY MODEL HASHES UNCHANGED
+
+        ↓
+
+SAVE PRE-ADAPTATION STATE MANIFEST
+
+        ↓
+
+PHASE-22 QC PASS
+
+        ↓
+
+READY FOR PHASE 23
+
+
+==================================================
+72. NEXT PHASE
+==================================================
+
+PHASE 23 — CYCLE-2 CLOSED-LOOP PARAMETER ADAPTATION WITH EWC
+
+
+Phase 23 should consume:
+
+B2
+
+and:
+
+Z_B2^(K1)
+
+
+and adapt:
+
+theta_E^(1)
+→
+theta_E^(2)
+
+
+theta_P^(1)
+→
+theta_P^(2)
+
+
+while retaining:
+
+theta_D* frozen
+
+
+and using:
+
+existing Fisher importance
+
+for continual-learning protection.
+
+
+==================================================
+FINAL PHASE-22 PRINCIPLE
+==================================================
+
+Phase 22 answers:
+
+“Where does the finalized Cycle-2 feedback batch lie within the current K1 molecular representation before the model is allowed to adapt?”
+
+
+Its core output is:
+
+Z_B2^(K1)
+
+
+Its purpose is:
+
+PRE-ADAPTATION REPRESENTATION CAPTURE
+
+
+not:
+
+parameter learning
+
+
+The phase creates the reference state required to later demonstrate:
+
+theta_E^(1)
+→
+theta_E^(2)
+
+
+and:
+
+Z_B2^(K1)
+→
+Z_B2^(K2)
+
+
+Therefore Phase 22 forms the explicit representational bridge between:
+
+active-learning candidate selection
+
+and:
+
+closed-loop continual parameter adaptation.
+
+
+============================================
 
 ---
 
