@@ -22076,29 +22076,2740 @@ where \(B_t\) is the prioritized feedback batch.
 
 ---
 
-# Phase 21 — Dynamic Re-Encoding of Selected Candidates
+============================
+PHASE 21 — CYCLE-2 MULTI-OBJECTIVE EVALUATION, MC-DROPOUT UTILITY UNCERTAINTY, UCB ACQUISITION, AND DIVERSITY-AWARE FEEDBACK SELECTION
 
-This phase is important for the “self-evolving” aspect.
 
-The selected candidates should be passed through the current encoder again:
+==================================================
+1. PHASE OBJECTIVE
+==================================================
 
-```text
-Selected candidate batch Bt
+Phase 21 evaluates the chemically eligible Cycle-2 molecular candidates produced by Phase 20 and prioritizes a computational feedback batch for the next continual-adaptation cycle.
+
+
+The Phase-20 verified input population is:
+
+C2_eligible
+
+
+Current size:
+
+|C2_eligible| = 967
+
+
+Phase 21 performs:
+
+current-state K1 molecular encoding
+
+K1 target-association prediction
+
+30-pass MC-Dropout uncertainty estimation
+
+multi-objective utility calculation
+
+expected utility estimation
+
+utility uncertainty estimation
+
+upper-confidence-bound acquisition
+
+kappa sensitivity analysis
+
+Pareto diagnostics
+
+high-acquisition pooling
+
+chemical diversity filtering
+
+final feedback-batch construction
+
+
+The final Phase-21 output is:
+
+B2
+
+the prioritized Cycle-2 computational feedback batch.
+
+
+==================================================
+2. PHASE BOUNDARY
+==================================================
+
+Phase 21 performs:
+
+molecular graph construction
+
+deterministic K1 encoding
+
+K1 biological-relevance evaluation
+
+MC-Dropout uncertainty estimation
+
+QED / SAUtility integration
+
+per-pass utility computation
+
+expected utility calculation
+
+utility-uncertainty calculation
+
+UCB acquisition scoring
+
+kappa sensitivity analysis
+
+multi-objective Pareto diagnostics
+
+high-UCB candidate pooling
+
+Morgan fingerprint construction
+
+greedy diversity-aware selection
+
+final B2 construction
+
+candidate-level acquisition provenance
+
+model-integrity verification
+
+
+Phase 21 does NOT perform:
+
+molecular generation
+
+chemical eligibility filtering
+
+decoder sampling
+
+encoder training
+
+predictor training
+
+decoder training
+
+backpropagation
+
+optimizer steps
+
+EWC adaptation
+
+Fisher recalculation
+
+parameter updates
+
+experimental activity validation
+
+
+==================================================
+3. AUTHORITATIVE INPUT
+==================================================
+
+Primary input file:
+
+phase20_cycle2_eligible_candidates.csv
+
+
+Expected population:
+
+967
+
+
+Input cohort:
+
+C2_eligible
+
+
+Every candidate entering Phase 21 must already satisfy:
+
+Phase-20 chemical eligibility
+
+single-fragment requirement
+
+4 <= heavy_atom_count <= 80
+
+finite descriptors
+
+Cycle-2 uniqueness
+
+Cycle-1 novelty requirement
+
+DrugBank novelty requirement
+
+
+==================================================
+4. AUTHORITATIVE CANDIDATE IDENTITIES
+==================================================
+
+Preserve Phase-19 / Phase-20:
+
+candidate_id
+
+phase19_canonical_smiles
+
+
+Do not generate new candidate IDs during evaluation.
+
+
+The same candidate_id must remain attached to:
+
+QED
+
+SA score
+
+SAUtility
+
+latent representation
+
+target scores
+
+uncertainty scores
+
+utility scores
+
+UCB scores
+
+Pareto status
+
+diversity-selection status
+
+feedback-batch status
+
+
+==================================================
+5. CURRENT KNOWLEDGE STATE
+==================================================
+
+Use the accepted K1 model state.
+
+
+K1 contains:
+
+theta_E^(1)
+
+theta_D*
+
+theta_P^(1)
+
+F_E
+
+F_P
+
+Z0
+
+S1
+
+
+Phase 21 should use:
+
+theta_E^(1)
+
+for molecular encoding
+
+
+and:
+
+theta_P^(1)
+
+for biological-relevance prediction.
+
+
+Do NOT return to:
+
+theta_E*
+
+or:
+
+theta_P*
+
+
+for the primary Cycle-2 evaluation.
+
+
+==================================================
+6. DECODER STATUS
+==================================================
+
+The generative decoder:
+
+theta_D*
+
+is not needed for Phase-21 scoring.
+
+
+It remains frozen.
+
+
+No decoder forward generation is required.
+
+
+Its checkpoint may still be hash-verified as part of model-integrity auditing.
+
+
+==================================================
+7. EXACT GRAPH REPRESENTATION
+==================================================
+
+For every candidate in C2_eligible construct the exact previously established molecular graph.
+
+
+Reuse:
+
+21 node features
+
+14 edge features
+
+explicit hydrogens
+
+ETKDGv3
+
+random seed = 42
+
+useRandomCoords = False
+
+fallback useRandomCoords = True
+
+MMFF94 optimization
+
+UFF fallback
+
+centered Cartesian coordinates
+
+bidirectional graph edges
+
+
+No graph-feature redesign is permitted in Phase 21.
+
+
+==================================================
+8. EXACT NODE FEATURE ORDER
+==================================================
+
+The 21 node features remain:
+
+1. atomic_number
+
+2. degree
+
+3. formal_charge
+
+4. aromatic
+
+5. in_ring
+
+6. hydrogen_neighbor_count
+
+7. atomic_mass
+
+8. implicit_valence
+
+9. explicit_valence
+
+10–17. hybridization one-hot
+
+18–21. chirality one-hot
+
+
+Hybridization categories:
+
+UNSPECIFIED
+
+S
+
+SP
+
+SP2
+
+SP3
+
+SP3D
+
+SP3D2
+
+OTHER
+
+
+Chirality categories:
+
+CHI_UNSPECIFIED
+
+CHI_TETRAHEDRAL_CW
+
+CHI_TETRAHEDRAL_CCW
+
+CHI_OTHER
+
+
+==================================================
+9. EXACT EDGE FEATURE ORDER
+==================================================
+
+The 14 edge features remain:
+
+bond type one-hot:
+
+SINGLE
+
+DOUBLE
+
+TRIPLE
+
+AROMATIC
+
+OTHER
+
+
+plus:
+
+is_conjugated
+
+is_in_ring
+
+
+plus stereo one-hot:
+
+STEREONONE
+
+STEREOANY
+
+STEREOZ
+
+STEREOE
+
+STEREOCIS
+
+STEREOTRANS
+
+OTHER
+
+
+==================================================
+10. EXACT NODE NORMALIZATION
+==================================================
+
+Reuse the frozen Phase-9 feature-normalization statistics.
+
+
+Standardized numerical node features remain:
+
+atomic_number
+
+degree
+
+formal_charge
+
+hydrogen_neighbor_count
+
+atomic_mass
+
+implicit_valence
+
+explicit_valence
+
+
+Do not fit new normalization statistics using Cycle-2 candidates.
+
+
+==================================================
+11. CURRENT K1 ENCODER
+==================================================
+
+Load:
+
+phase17_cycle1_adapted_encoder.pt
+
+
+This represents:
+
+theta_E^(1)
+
+
+The encoder should be placed in:
+
+evaluation mode
+
+
+All encoder parameters must satisfy:
+
+requires_grad = False
+
+
+No optimizer should contain encoder parameters.
+
+
+==================================================
+12. DETERMINISTIC K1 LATENT REPRESENTATION
+==================================================
+
+For candidate:
+
+c_i
+
+
+calculate:
+
+z_i
+=
+mu_thetaE(1)(c_i)
+
+
+Use:
+
+deterministic = True
+
+
+Do not sample from:
+
+N(mu, sigma)
+
+
+during Phase-21 evaluation.
+
+
+The primary latent representation is therefore:
+
+z_i = mu_i^(1)
+
+
+==================================================
+13. WHY DETERMINISTIC ENCODING IS REQUIRED
+==================================================
+
+Encoder sampling would introduce additional stochasticity that would become mixed with predictor uncertainty.
+
+
+Phase 21 intends the uncertainty source to be:
+
+MC Dropout in theta_P^(1)
+
+
+Therefore the encoder latent should remain fixed across all 30 stochastic prediction passes.
+
+
+==================================================
+14. LATENT DIMENSION
+==================================================
+
+Require:
+
+latent dimension = 32
+
+
+For every successful candidate verify:
+
+shape = (32,)
+
+all latent values finite
+
+no NaN
+
+no +infinity
+
+no -infinity
+
+
+==================================================
+15. CURRENT K1 PREDICTOR
+==================================================
+
+Load:
+
+phase17_cycle1_adapted_predictor.pt
+
+
+This represents:
+
+theta_P^(1)
+
+
+The predictor outputs scores over:
+
+130 targets
+
+
+The predictor must use the frozen:
+
+Phase-12 target vocabulary
+
+Phase-12 latent normalization
+
+
+==================================================
+16. LATENT NORMALIZATION
+==================================================
+
+Before predictor evaluation, apply the exact frozen Phase-12 latent normalization.
+
+
+Do not refit latent normalization using Cycle-2 candidates.
+
+
+The predictor input representation must remain fully compatible with the training-time representation.
+
+
+==================================================
+17. TARGET VOCABULARY
+==================================================
+
+Reuse the exact frozen Phase-12 target vocabulary.
+
+
+Expected target count:
+
+130
+
+
+Do not:
+
+rename target IDs
+
+reorder target IDs
+
+remove targets
+
+add targets
+
+
+==================================================
+18. BIOLOGICAL-RELEVANCE INTERPRETATION
+==================================================
+
+The predictor output represents:
+
+DrugBank-derived target-association relevance
+
+
+It does NOT represent:
+
+binding affinity
+
+Ki
+
+Kd
+
+IC50
+
+EC50
+
+experimental potency
+
+clinical efficacy
+
+
+==================================================
+19. MC-DROPOUT DESIGN
+==================================================
+
+Use:
+
+T = 30
+
+
+stochastic predictor passes per candidate.
+
+
+This retains consistency with the established uncertainty protocol used previously.
+
+
+For every candidate:
+
+c_i
+
+
+calculate:
+
+B_i^(1)
+
+B_i^(2)
+
+...
+
+B_i^(30)
+
+
+==================================================
+20. PAIRED MC-DROPOUT POLICY
+==================================================
+
+Use paired stochastic seeds across candidates where practical.
+
+
+The purpose is to ensure that candidate comparisons are not unnecessarily affected by different random-seed schedules.
+
+
+Recommended:
+
+MC seed schedule fixed globally
+
+
+For pass:
+
+t
+
+
+use the same dropout seed index for all candidates.
+
+
+==================================================
+21. MC-DROPOUT MODEL MODE
+==================================================
+
+During uncertainty estimation:
+
+encoder = eval mode
+
+predictor LayerNorm = eval behavior
+
+predictor Dropout = train behavior
+
+no gradients = True
+
+
+Only dropout should provide stochasticity.
+
+
+Do not place the entire predictor indiscriminately into training mode if doing so changes other layer behavior.
+
+
+==================================================
+22. TOP-TARGET BIOLOGICAL RELEVANCE
+==================================================
+
+For every MC pass obtain predictions for all 130 targets.
+
+
+For candidate:
+
+c_i
+
+
+calculate mean target score:
+
+mu_B,i,j
+
+
+for target:
+
+j
+
+
+and target uncertainty:
+
+sigma_B,i,j
+
+
+over the 30 passes.
+
+
+==================================================
+23. CANDIDATE BIOLOGICAL-RELEVANCE SUMMARY
+==================================================
+
+For every candidate retain:
+
+mean prediction vector over 130 targets
+
+uncertainty vector over 130 targets
+
+top target identity
+
+top target mean score
+
+top-5 target identities
+
+top-5 target mean scores
+
+top-5 target uncertainty values
+
+
+==================================================
+24. PRIMARY BIOLOGICAL RELEVANCE TERM
+==================================================
+
+For utility calculation, use the same biological-relevance definition established in the prior cycle.
+
+
+Recommended:
+
+B_i^(t)
+=
+mean prediction across the candidate's selected top-5 target identities
+
+
+The exact top-target aggregation policy must remain consistent with the established Cycle-1 acquisition methodology.
+
+
+Do not redefine biological relevance simply because this is Cycle 2.
+
+
+==================================================
+25. IMPORTANT TOP-TARGET POLICY
+==================================================
+
+The target-aggregation policy must be explicitly frozen before computing UCB.
+
+
+Possible implementation:
+
+1. Determine candidate-specific target identities from the K1 mean prediction.
+
+2. Freeze those target identities.
+
+3. For each of the 30 MC passes, evaluate the same frozen target set.
+
+4. Compute B_i^(t) from those fixed target identities.
+
+
+Do not allow the top-5 target set to change independently on every MC pass.
+
+
+Otherwise target-identity switching would inflate apparent uncertainty.
+
+
+==================================================
+26. PHASE-20 DESCRIPTORS
+==================================================
+
+Reuse Phase-20:
+
+QED_i
+
+SA_score_i
+
+SAUtility_i
+
+
+Do not recalculate them with a different implementation unless performing an audit check.
+
+
+Primary utility uses:
+
+QED_i
+
+SAUtility_i
+
+B_i^(t)
+
+
+==================================================
+27. PRIMARY UTILITY DEFINITION
+==================================================
+
+Retain the previously frozen utility:
+
+U_i^(t)
+=
+0.30 * QED_i
++
+0.20 * SAUtility_i
++
+0.50 * B_i^(t)
+
+
+The weights remain:
+
+QED = 0.30
+
+SAUtility = 0.20
+
+Biological relevance = 0.50
+
+
+==================================================
+28. PRIMARY UTILITY MUST REMAIN FIXED
+==================================================
+
+Do not optimize these weights during Phase 21.
+
+
+Do not redefine them based on Cycle-2 results.
+
+
+The fixed primary utility allows direct interpretation across cycles.
+
+
+==================================================
+29. UTILITY PER MC PASS
+==================================================
+
+For candidate:
+
+c_i
+
+
+and stochastic predictor pass:
+
+t
+
+
+calculate:
+
+U_i^(t)
+=
+0.30QED_i
++
+0.20SAUtility_i
++
+0.50B_i^(t)
+
+
+This produces 30 utility values per candidate.
+
+
+==================================================
+30. EXPECTED UTILITY
+==================================================
+
+Calculate:
+
+mu_U,i
+=
+(1/T)
+*
+sum_t U_i^(t)
+
+
+with:
+
+T = 30
+
+
+This represents:
+
+expected computational utility
+
+
+==================================================
+31. UTILITY UNCERTAINTY
+==================================================
+
+Calculate sample standard deviation:
+
+sigma_U,i
+=
+sqrt[
+1/(T-1)
+*
+sum_t
+(
+U_i^(t)
+-
+mu_U,i
+)^2
+]
+
+
+Use:
+
+ddof = 1
+
+
+This represents:
+
+MC-Dropout-derived uncertainty propagated into the utility function.
+
+
+==================================================
+32. WHY THIS UNCERTAINTY FORMULATION IS PREFERRED
+==================================================
+
+QED and SAUtility are deterministic.
+
+
+Therefore uncertainty originates from:
+
+B_i^(t)
+
+
+By calculating utility independently on each MC pass, biological uncertainty is automatically propagated through the fixed utility weight.
+
+
+This avoids manually inventing a separate uncertainty scaling rule.
+
+
+==================================================
+33. IMPORTANT RELATIONSHIP
+==================================================
+
+Because only B is stochastic:
+
+sigma_U
+
+should approximately satisfy:
+
+sigma_U
+=
+0.50 * sigma_B
+
+
+for the corresponding biological-relevance aggregate.
+
+
+This can be checked as a QC diagnostic.
+
+
+==================================================
+34. DO NOT DOUBLE-COUNT UNCERTAINTY
+==================================================
+
+Do NOT calculate:
+
+U
+=
+0.30QED
++
+0.20SAUtility
++
+0.50
+(
+B
++
+beta*sigma_B
+)
+
+
+and then again calculate:
+
+alpha_UCB
+=
+U
++
+kappa*sigma_U
+
+
+That would count uncertainty twice.
+
+
+The required separation is:
+
+
+EXPLOITATION OBJECTIVE:
+
+mu_U
+
+
+EXPLORATION BONUS:
+
+kappa*sigma_U
+
+
+==================================================
+35. UCB ACQUISITION
+==================================================
+
+For candidate:
+
+c_i
+
+
+calculate:
+
+alpha_UCB,i
+=
+mu_U,i
++
+kappa*sigma_U,i
+
+
+This balances:
+
+high expected computational utility
+
+and
+
+high predictive uncertainty
+
+
+==================================================
+36. PRIMARY KAPPA
+==================================================
+
+Predefine:
+
+kappa_primary = 1.0
+
+
+Therefore the primary acquisition score is:
+
+alpha_primary,i
+=
+mu_U,i
++
+sigma_U,i
+
+
+==================================================
+37. KAPPA SENSITIVITY GRID
+==================================================
+
+Evaluate:
+
+kappa = 0.0
+
+kappa = 0.5
+
+kappa = 1.0
+
+kappa = 2.0
+
+
+These are sensitivity scenarios.
+
+
+Only:
+
+kappa = 1.0
+
+
+is the primary Phase-21 acquisition setting.
+
+
+==================================================
+38. KAPPA = 0 INTERPRETATION
+==================================================
+
+For:
+
+kappa = 0
+
+
+UCB becomes:
+
+alpha_0
+=
+mu_U
+
+
+This is pure exploitation.
+
+
+==================================================
+39. KAPPA = 0.5 INTERPRETATION
+==================================================
+
+For:
+
+kappa = 0.5
+
+
+acquisition uses:
+
+alpha_0.5
+=
+mu_U
++
+0.5sigma_U
+
+
+This introduces a mild exploration bonus.
+
+
+==================================================
+40. KAPPA = 1.0 INTERPRETATION
+==================================================
+
+For:
+
+kappa = 1.0
+
+
+acquisition uses:
+
+alpha_1
+=
+mu_U
++
+sigma_U
+
+
+This is the predefined primary acquisition score.
+
+
+==================================================
+41. KAPPA = 2.0 INTERPRETATION
+==================================================
+
+For:
+
+kappa = 2.0
+
+
+acquisition uses:
+
+alpha_2
+=
+mu_U
++
+2sigma_U
+
+
+This places greater emphasis on uncertainty.
+
+
+==================================================
+42. KAPPA IS NOT OPTIMIZED
+==================================================
+
+Do not inspect results and select whichever kappa produces the most attractive molecules.
+
+
+The primary value:
+
+kappa = 1.0
+
+
+must remain fixed a priori.
+
+
+Alternative values are diagnostic only.
+
+
+==================================================
+43. UCB RANKS
+==================================================
+
+For every candidate calculate:
+
+rank_kappa_0
+
+rank_kappa_0_5
+
+rank_kappa_1
+
+rank_kappa_2
+
+
+Primary rank:
+
+primary_UCB_rank
+=
+rank_kappa_1
+
+
+==================================================
+44. KAPPA RANK-SENSITIVITY ANALYSIS
+==================================================
+
+Compare primary:
+
+kappa = 1.0
+
+
+against:
+
+kappa = 0.0
+
+kappa = 0.5
+
+kappa = 2.0
+
+
+using:
+
+Spearman rank correlation
+
+Kendall rank correlation
+
+
+==================================================
+45. TOP-K OVERLAP ANALYSIS
+==================================================
+
+For each alternative kappa calculate overlap with the primary UCB ranking at:
+
+Top 10
+
+Top 20
+
+Top 50
+
+
+For example:
+
+Top50Overlap
+=
+|Top50_kappa1 ∩ Top50_kappaX|
+/
+50
+
+
+==================================================
+46. PURPOSE OF KAPPA SENSITIVITY
+==================================================
+
+The purpose is not to identify an optimal kappa.
+
+
+The purpose is to determine whether candidate prioritization is highly sensitive to the exploration coefficient.
+
+
+==================================================
+47. MULTI-OBJECTIVE BASE VARIABLES
+==================================================
+
+For every candidate preserve:
+
+QED
+
+SAUtility
+
+biological relevance mean
+
+
+These three variables define the underlying multi-objective candidate profile.
+
+
+==================================================
+48. PARETO DIAGNOSTIC
+==================================================
+
+Evaluate Pareto dominance using:
+
+maximize QED
+
+maximize SAUtility
+
+maximize biological relevance
+
+
+A candidate is Pareto optimal if no other candidate is at least as good in all three objectives and strictly better in at least one.
+
+
+==================================================
+49. PARETO STATUS IS DIAGNOSTIC
+==================================================
+
+Pareto status does not replace UCB acquisition.
+
+
+Primary candidate selection remains driven by:
+
+alpha_UCB
+with
+kappa = 1.0
+
+
+Pareto information should be retained as supporting evidence.
+
+
+==================================================
+50. PRIMARY ACQUISITION RANKING
+==================================================
+
+Sort all 967 eligible candidates by:
+
+primary_UCB_score
+
+
+descending.
+
+
+Primary tie-breaking policy should be predefined.
+
+
+Recommended tie-breaking order:
+
+1. higher alpha_UCB
+
+2. higher mu_U
+
+3. higher sigma_U
+
+4. higher biological relevance
+
+5. candidate_id ascending
+
+
+==================================================
+51. HIGH-ACQUISITION POOL
+==================================================
+
+Define:
+
+H2
+
+
+as the highest-ranked:
+
+M = 100
+
+
+candidates under the primary:
+
+kappa = 1.0
+
+
+UCB ranking.
+
+
+Thus:
+
+H2
+=
+Top100_alphaUCB
+
+
+==================================================
+52. WHY TOP 100 IS USED
+==================================================
+
+The final feedback batch should contain:
+
+50 candidates
+
+
+Selecting diversity directly from all 967 candidates could allow very low-acquisition candidates into B2.
+
+
+Selecting only the top 50 UCB candidates could produce structural redundancy.
+
+
+Therefore:
+
+Top 100
+
+creates a sufficiently high-acquisition candidate pool before diversity filtering.
+
+
+==================================================
+53. CHEMICAL FINGERPRINT
+==================================================
+
+For all candidates in H2 calculate:
+
+Morgan fingerprint
+
+
+using:
+
+radius = 2
+
+fingerprint size = 2048 bits
+
+
+==================================================
+54. CHEMICAL DISTANCE
+==================================================
+
+Use:
+
+Tanimoto similarity
+
+
+Define distance:
+
+d(i,j)
+=
+1
+-
+Tanimoto(i,j)
+
+
+==================================================
+55. FINAL DIVERSITY-AWARE SELECTION
+==================================================
+
+Select:
+
+|B2| = 50
+
+
+from:
+
+H2
+
+
+using greedy MaxMin diversity.
+
+
+Recommended algorithm:
+
+1. Start with the highest-UCB candidate.
+
+2. Add it to B2.
+
+3. For every remaining H2 candidate calculate its minimum distance to the selected B2 set.
+
+4. Select the candidate with the largest minimum distance.
+
+5. If tied, prefer higher primary UCB score.
+
+6. Continue until:
+
+|B2| = 50
+
+
+==================================================
+56. FINAL FEEDBACK BATCH
+==================================================
+
+Define:
+
+B2
+subset
+H2
+subset
+C2_eligible
+
+
+with:
+
+|H2| = 100
+
+
+and:
+
+|B2| = 50
+
+
+==================================================
+57. IMPORTANT B2 TERMINOLOGY
+==================================================
+
+B2 should be called:
+
+prioritized computational feedback batch
+
+
+or:
+
+surrogate-guided active-learning feedback batch
+
+
+Do NOT call B2:
+
+experimentally validated compounds
+
+active compounds
+
+confirmed hits
+
+validated drugs
+
+
+unless experimental evidence is later introduced.
+
+
+==================================================
+58. B2 SELECTION PROVENANCE
+==================================================
+
+Every B2 candidate should retain:
+
+candidate_id
+
+canonical_smiles
+
+QED
+
+SA score
+
+SAUtility
+
+biological relevance mean
+
+biological relevance uncertainty
+
+mu_U
+
+sigma_U
+
+UCB_kappa_0
+
+UCB_kappa_0_5
+
+UCB_kappa_1
+
+UCB_kappa_2
+
+primary_UCB_rank
+
+Pareto status
+
+high-acquisition-pool status
+
+diversity-selection order
+
+minimum Tanimoto distance at selection
+
+final B2 status
+
+
+==================================================
+59. TARGET-LEVEL OUTPUTS
+==================================================
+
+For all Phase-21 candidates retain target-level outputs.
+
+
+Recommended:
+
+mean target matrix
+
+uncertainty target matrix
+
+
+Each matrix should contain:
+
+candidate_id
+
+target_1
+
+target_2
+
+...
+
+target_130
+
+
+==================================================
+60. MC-UTILITY PASS OUTPUT
+==================================================
+
+Save per-pass utility values.
+
+
+Recommended format:
+
+candidate_id
+
+mc_pass
+
+biological_relevance
+
+utility
+
+
+For 967 candidates and 30 passes:
+
+967 * 30
+=
+29,010 rows
+
+
+==================================================
+61. GRAPH FAILURE POLICY
+==================================================
+
+Phase 20 chemical eligibility does not guarantee successful 3D graph construction.
+
+
+If graph generation fails in Phase 21:
+
+do not silently remove the candidate
+
+
+Record:
+
+GRAPH_CONSTRUCTION_FAILED
+
+
+The candidate cannot be scored by the K1 model and therefore cannot enter the active-learning batch.
+
+
+==================================================
+62. ENCODER FAILURE POLICY
+==================================================
+
+If K1 encoding fails:
+
+record:
+
+ENCODER_FAILED
+
+
+Do not silently replace the latent representation.
+
+
+==================================================
+63. PREDICTOR FAILURE POLICY
+==================================================
+
+If predictor inference fails:
+
+record:
+
+PREDICTOR_FAILED
+
+
+Do not fabricate biological scores.
+
+
+==================================================
+64. MC-DROPOUT COMPLETENESS
+==================================================
+
+A candidate used for UCB ranking should have:
+
+all 30 MC passes successfully completed
+
+
+If fewer than 30 passes succeed:
+
+record:
+
+INCOMPLETE_MC_DROPOUT
+
+
+Recommended primary policy:
+
+exclude that candidate from UCB selection.
+
+
+==================================================
+65. SCORABLE CANDIDATE COHORT
+==================================================
+
+Define:
+
+C2_scorable
+
+
+as candidates that successfully complete:
+
+graph construction
+
+K1 encoding
+
+latent normalization
+
+30-pass K1 predictor inference
+
+utility calculation
+
+
+Then:
+
+B2
+subset
+C2_scorable
+subset
+C2_eligible
+
+
+==================================================
+66. POPULATION ACCOUNTING
+==================================================
+
+Record:
+
+N_eligible
+
+N_graph_success
+
+N_encoder_success
+
+N_predictor_success
+
+N_full_MC_success
+
+N_scorable
+
+N_high_acquisition_pool
+
+N_B2
+
+
+This provides a complete audit trail.
+
+
+==================================================
+67. NO SILENT LOSS
+==================================================
+
+Require:
+
+every candidate in C2_eligible
+
+
+to appear in the Phase-21 evaluation manifest.
+
+
+Each candidate should be classified as:
+
+scorable
+
+or
+
+not scorable
+
+
+with explicit failure reason.
+
+
+==================================================
+68. MODEL FREEZING
+==================================================
+
+During Phase 21:
+
+theta_E^(1) unchanged
+
+theta_P^(1) unchanged
+
+theta_D* unchanged
+
+
+No model parameter should be modified.
+
+
+==================================================
+69. NO TRAINING
+==================================================
+
+Phase 21 must satisfy:
+
+optimizer created = False
+
+backward pass = False
+
+gradient update = False
+
+encoder update = False
+
+predictor update = False
+
+decoder update = False
+
+EWC applied = False
+
+Fisher recalculated = False
+
+
+==================================================
+70. CHECKPOINT INTEGRITY
+==================================================
+
+Record SHA-256 hashes before and after Phase 21 for:
+
+theta_E*
+
+theta_D*
+
+theta_P*
+
+theta_E^(1)
+
+theta_P^(1)
+
+F_E
+
+F_P
+
+Phase-13 parameter reference
+
+
+Require:
+
+hash_before
+=
+hash_after
+
+
+==================================================
+71. PRIMARY OUTPUT FILE
+==================================================
+
+Recommended:
+
+phase21_cycle2_multiobjective_scores.csv
+
+
+Suggested columns:
+
+candidate_id
+
+canonical_smiles
+
+qed
+
+sa_score
+
+sa_utility
+
+biological_relevance_mean
+
+biological_relevance_std
+
+expected_utility_mu
+
+utility_uncertainty_sigma
+
+UCB_kappa_0
+
+UCB_kappa_0_5
+
+UCB_kappa_1
+
+UCB_kappa_2
+
+rank_kappa_0
+
+rank_kappa_0_5
+
+rank_kappa_1
+
+rank_kappa_2
+
+pareto_optimal
+
+scorable
+
+failure_reason
+
+
+==================================================
+72. TARGET-MEAN MATRIX
+==================================================
+
+Save:
+
+phase21_cycle2_target_mean_matrix.csv
+
+
+Containing:
+
+candidate_id
+
+130 target mean values
+
+
+==================================================
+73. TARGET-UNCERTAINTY MATRIX
+==================================================
+
+Save:
+
+phase21_cycle2_target_uncertainty_matrix.csv
+
+
+Containing:
+
+candidate_id
+
+130 MC-Dropout standard deviations
+
+
+==================================================
+74. MC UTILITY PASSES
+==================================================
+
+Save:
+
+phase21_cycle2_mc_utility_passes.csv
+
+
+Containing:
+
+candidate_id
+
+mc_pass
+
+biological_relevance
+
+utility
+
+
+==================================================
+75. PARETO OUTPUT
+==================================================
+
+Save:
+
+phase21_cycle2_pareto_candidates.csv
+
+
+Containing all candidates with:
+
+pareto_optimal = True
+
+
+==================================================
+76. KAPPA RANK-CORRELATION OUTPUT
+==================================================
+
+Save:
+
+phase21_kappa_sensitivity_rank_correlations.csv
+
+
+Columns:
+
+primary_kappa
+
+comparison_kappa
+
+spearman
+
+kendall
+
+
+==================================================
+77. KAPPA TOP-K OVERLAP OUTPUT
+==================================================
+
+Save:
+
+phase21_kappa_sensitivity_topK_overlap.csv
+
+
+Columns:
+
+primary_kappa
+
+comparison_kappa
+
+top_k
+
+overlap_count
+
+overlap_fraction
+
+
+==================================================
+78. HIGH-ACQUISITION POOL OUTPUT
+==================================================
+
+Save:
+
+phase21_high_acquisition_pool.csv
+
+
+Expected size:
+
+100
+
+
+unless fewer than 100 scorable candidates exist.
+
+
+==================================================
+79. FEEDBACK BATCH OUTPUT
+==================================================
+
+Save:
+
+phase21_feedback_batch_B2.csv
+
+
+Expected size:
+
+50
+
+
+This is the authoritative input to Phase 22.
+
+
+==================================================
+80. B2 DIVERSITY MATRIX
+==================================================
+
+Save:
+
+phase21_feedback_batch_diversity_matrix.csv
+
+
+This should contain pairwise:
+
+1 - Tanimoto
+
+
+distances among the 50 selected B2 candidates.
+
+
+==================================================
+81. ACQUISITION CONFIGURATION
+==================================================
+
+Save:
+
+phase21_acquisition_config.json
+
+
+Include:
+
+cycle = 2
+
+input candidate file
+
+expected eligible candidates = 967
+
+encoder checkpoint
+
+predictor checkpoint
+
+decoder checkpoint
+
+latent dimension = 32
+
+target count = 130
+
+MC passes = 30
+
+primary utility weights
+
+kappa sensitivity values
+
+primary kappa = 1.0
+
+high-acquisition pool size = 100
+
+feedback batch size = 50
+
+Morgan radius = 2
+
+Morgan fingerprint bits = 2048
+
+diversity method = greedy MaxMin Tanimoto
+
+random seed = 42
+
+optimizer = None
+
+backward = False
+
+Fisher recalculation = False
+
+
+==================================================
+82. EVALUATION MANIFEST
+==================================================
+
+Save:
+
+phase21_cycle2_evaluation_manifest.csv
+
+
+Recommended fields:
+
+candidate_id
+
+canonical_smiles
+
+graph_success
+
+graph_failure_reason
+
+encoder_success
+
+encoder_failure_reason
+
+predictor_success
+
+predictor_failure_reason
+
+mc_passes_completed
+
+scorable
+
+failure_reason
+
+
+==================================================
+83. ACQUISITION STATISTICS
+==================================================
+
+Save:
+
+phase21_acquisition_statistics.csv
+
+
+Recommended metrics:
+
+eligible candidates
+
+graph successes
+
+encoder successes
+
+MC-Dropout successes
+
+scorable candidates
+
+mean biological relevance
+
+mean biological uncertainty
+
+mean expected utility
+
+mean utility uncertainty
+
+minimum primary UCB
+
+median primary UCB
+
+mean primary UCB
+
+maximum primary UCB
+
+Pareto candidate count
+
+high-acquisition pool count
+
+final B2 count
+
+mean B2 pairwise fingerprint distance
+
+minimum B2 pairwise fingerprint distance
+
+
+==================================================
+84. QC OUTPUT
+==================================================
+
+Save:
+
+phase21_acquisition_qc_summary.csv
+
+phase21_acquisition_qc_summary.json
+
+
+==================================================
+85. COMPLETION CRITERIA
+==================================================
+
+Phase 21 is complete when:
+
+1. Phase-20 C2_eligible is loaded.
+
+2. Input population is verified as 967.
+
+3. Candidate IDs are preserved.
+
+4. Canonical molecular identities are preserved.
+
+5. QED is reused from Phase 20.
+
+6. SA score is reused from Phase 20.
+
+7. SAUtility is reused from Phase 20.
+
+8. Exact Phase-7 graph representation is reused.
+
+9. Exact Phase-9 node normalization is reused.
+
+10. K1 encoder theta_E^(1) is loaded.
+
+11. Encoder parameter count is verified.
+
+12. K1 predictor theta_P^(1) is loaded.
+
+13. Predictor parameter count is verified.
+
+14. Frozen Phase-12 latent normalization is reused.
+
+15. Frozen 130-target vocabulary is reused.
+
+16. Encoder deterministic mu is used.
+
+17. Latent dimension equals 32.
+
+18. Latent values are finite.
+
+19. Predictor uncertainty is generated only by Dropout.
+
+20. T = 30 MC passes are attempted for every scorable candidate.
+
+21. Candidate-specific target identities are frozen across MC passes.
+
+22. Biological relevance is calculated per pass.
+
+23. Utility is calculated per pass.
+
+24. Primary utility remains 0.30 / 0.20 / 0.50.
+
+25. Expected utility mu_U is calculated.
+
+26. Utility uncertainty sigma_U is calculated using sample standard deviation.
+
+27. No uncertainty is double-counted.
+
+28. UCB is calculated for kappa = 0.0.
+
+29. UCB is calculated for kappa = 0.5.
+
+30. UCB is calculated for kappa = 1.0.
+
+31. UCB is calculated for kappa = 2.0.
+
+32. kappa = 1.0 remains the predefined primary setting.
+
+33. Primary UCB ranks are generated.
+
+34. Spearman kappa sensitivity is calculated.
+
+35. Kendall kappa sensitivity is calculated.
+
+36. Top-10 overlap is calculated.
+
+37. Top-20 overlap is calculated.
+
+38. Top-50 overlap is calculated.
+
+39. QED / SAUtility / biological relevance Pareto status is calculated.
+
+40. Pareto status is retained only as diagnostic information.
+
+41. C2_scorable is explicitly defined.
+
+42. Every non-scorable candidate has a failure reason.
+
+43. No eligible candidate silently disappears.
+
+44. Top-100 primary UCB candidates form H2.
+
+45. Morgan fingerprints use radius 2.
+
+46. Morgan fingerprints use 2048 bits.
+
+47. Tanimoto distance is calculated.
+
+48. Greedy MaxMin diversity selection is performed.
+
+49. Highest-UCB candidate initializes B2 selection.
+
+50. UCB is used as tie-breaker during diversity selection.
+
+51. Final B2 contains 50 candidates.
+
+52. B2 is a subset of H2.
+
+53. H2 is a subset of C2_scorable.
+
+54. Candidate IDs remain original Cycle-2 IDs.
+
+55. Full acquisition provenance is saved.
+
+56. Target-mean matrix is saved.
+
+57. Target-uncertainty matrix is saved.
+
+58. MC utility passes are saved.
+
+59. Multi-objective scores are saved.
+
+60. Pareto output is saved.
+
+61. Kappa sensitivity outputs are saved.
+
+62. H2 is saved.
+
+63. B2 is saved.
+
+64. B2 diversity matrix is saved.
+
+65. Evaluation manifest is saved.
+
+66. Acquisition statistics are saved.
+
+67. Acquisition configuration is saved.
+
+68. No optimizer is created.
+
+69. No backward pass occurs.
+
+70. No gradient update occurs.
+
+71. No encoder adaptation occurs.
+
+72. No predictor adaptation occurs.
+
+73. No decoder adaptation occurs.
+
+74. No EWC is applied.
+
+75. No Fisher recalculation occurs.
+
+76. K0 checkpoints remain unchanged.
+
+77. K1 checkpoints remain unchanged.
+
+78. Fisher artifacts remain unchanged.
+
+79. QC summary is generated.
+
+80. B2 is ready for Phase 22.
+
+
+==================================================
+86. APPROPRIATE SCIENTIFIC STATEMENTS
+==================================================
+
+It is appropriate to state:
+
+“Chemically eligible Cycle-2 molecules were evaluated using the accepted K1 encoder and predictor.”
+
+
+It is appropriate to state:
+
+“Predictive uncertainty was estimated through repeated MC-Dropout inference while maintaining deterministic molecular encoding.”
+
+
+It is appropriate to state:
+
+“Utility uncertainty was propagated directly from stochastic biological-relevance estimates through the fixed multi-objective utility function.”
+
+
+It is appropriate to state:
+
+“An upper-confidence-bound acquisition function combined expected computational utility with predictive uncertainty.”
+
+
+It is appropriate to state:
+
+“The exploration coefficient was predefined and evaluated through sensitivity analysis rather than selected post hoc.”
+
+
+It is appropriate to state:
+
+“The final computational feedback batch was selected from a high-acquisition candidate pool using molecular fingerprint diversity.”
+
+
+==================================================
+87. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+“High UCB proves biological activity.”
+
+“High UCB proves binding affinity.”
+
+“High uncertainty proves biological novelty.”
+
+“The model discovered experimentally active compounds.”
+
+“The B2 compounds are validated drugs.”
+
+“kappa = 1 is universally optimal.”
+
+“MC Dropout produces exact Bayesian uncertainty.”
+
+“Pareto-optimal compounds are clinically superior.”
+
+“Phase 21 performs self-learning.”
+
+“Phase 21 updates the encoder.”
+
+
+==================================================
+88. CLOSED-LOOP INTERPRETATION
+==================================================
+
+Phase 21 represents:
+
+surrogate-guided active-learning prioritization
+
+
+not:
+
+experimental feedback learning
+
+
+The selected B2 population represents molecules prioritized for the next computational feedback/adaptation stage.
+
+
+==================================================
+89. FULL PHASE-21 DATA FLOW
+==================================================
+
+PHASE-20 OUTPUT
+
+C2_eligible
+
+967 candidates
+
         ↓
-Current encoder θE
+
+PRESERVE
+
+candidate_id
+
+canonical_smiles
+
+QED
+
+SA
+
+SAUtility
+
         ↓
-Updated embeddings
+
+EXACT PHASE-7 GRAPH CONSTRUCTION
+
         ↓
-zt
-```
 
-These embeddings represent where the newly selected chemical information lies in the current latent manifold.
+EXACT PHASE-9 NODE NORMALIZATION
 
-The system therefore does not simply store the selected candidates.
+        ↓
 
-It **re-ingests them into the representation-learning process**.
+CURRENT K1 ENCODER
+
+theta_E^(1)
+
+        ↓
+
+DETERMINISTIC LATENT
+
+z_i = mu_i^(1)
+
+        ↓
+
+FROZEN PHASE-12 LATENT NORMALIZATION
+
+        ↓
+
+CURRENT K1 PREDICTOR
+
+theta_P^(1)
+
+        ↓
+
+30-PASS MC DROPOUT
+
+        ↓
+
+TARGET MEANS
+
++
+
+TARGET UNCERTAINTIES
+
+        ↓
+
+FREEZE CANDIDATE TOP-TARGET IDENTITIES
+
+        ↓
+
+FOR EACH MC PASS
+
+B_i^(t)
+
+        ↓
+
+UTILITY PER PASS
+
+U_i^(t)
+=
+0.30 QED_i
++
+0.20 SAUtility_i
++
+0.50 B_i^(t)
+
+        ↓
+
+EXPECTED UTILITY
+
+mu_U,i
+
+        ↓
+
+UTILITY UNCERTAINTY
+
+sigma_U,i
+
+        ↓
+
+UCB SCORES
+
+kappa = 0.0
+
+kappa = 0.5
+
+kappa = 1.0
+
+kappa = 2.0
+
+        ↓
+
+PRIMARY
+
+kappa = 1.0
+
+        ↓
+
+PRIMARY UCB RANK
+
+        ↓
+
+KAPPA SENSITIVITY
+
+Spearman
+
+Kendall
+
+Top-10 overlap
+
+Top-20 overlap
+
+Top-50 overlap
+
+        ↓
+
+PARETO DIAGNOSTIC
+
+QED
+
+SAUtility
+
+BiologicalRelevance
+
+        ↓
+
+C2_scorable
+
+        ↓
+
+TOP 100 PRIMARY-UCB CANDIDATES
+
+H2
+
+        ↓
+
+MORGAN FINGERPRINT
+
+radius = 2
+
+bits = 2048
+
+        ↓
+
+TANIMOTO DISTANCE
+
+        ↓
+
+GREEDY MAXMIN DIVERSITY SELECTION
+
+        ↓
+
+FINAL FEEDBACK BATCH
+
+B2
+
+N = 50
+
+        ↓
+
+SAVE FULL ACQUISITION PROVENANCE
+
+        ↓
+
+VERIFY ALL MODEL HASHES UNCHANGED
+
+        ↓
+
+PHASE-21 QC PASS
+
+        ↓
+
+READY FOR PHASE 22
+
+
+==================================================
+90. NEXT PHASE
+==================================================
+
+PHASE 22 — DYNAMIC RE-ENCODING AND LATENT-MANIFOLD INTEGRATION OF THE SELECTED CYCLE-2 FEEDBACK BATCH
+
+
+Phase 22 should consume:
+
+phase21_feedback_batch_B2.csv
+
+
+and generate:
+
+Z_B2^(K1)
+
+
+as the formal pre-adaptation latent snapshot.
+
+
+==================================================
+FINAL PHASE-21 PRINCIPLE
+==================================================
+
+Phase 21 answers:
+
+“Among the chemically eligible Cycle-2 molecules, which candidates provide the strongest balance of expected computational utility, model uncertainty, multi-objective quality, and chemical diversity for the next closed-loop feedback cycle?”
+
+
+The selection logic is:
+
+C2_eligible
+
+        ↓
+
+K1 evaluation
+
+        ↓
+
+MC-Dropout uncertainty
+
+        ↓
+
+per-pass utility
+
+        ↓
+
+mu_U
+
++
+
+sigma_U
+
+        ↓
+
+UCB acquisition
+
+        ↓
+
+Top-100 high-acquisition pool
+
+        ↓
+
+diversity-aware MaxMin selection
+
+        ↓
+
+B2 = 50
+
+
+Therefore Phase 21 is the:
+
+ACTIVE-LEARNING ACQUISITION AND FEEDBACK-BATCH SELECTION STAGE
+
+
+between:
+
+Cycle-2 chemical screening
+
+and:
+
+Cycle-2 dynamic re-encoding / continual adaptation.
+
+
+
+============================
 
 ---
+
+
+PHASE 21
+Cycle-2 Multi-Objective Evaluation,
+MC-Dropout Utility Uncertainty,
+UCB Acquisition,
+and Diversity-Aware Feedback Selection
+
+PHASE 22
+Dynamic Re-Encoding and
+Latent-Manifold Integration
+of the Selected Cycle-2 Feedback Batch
+
+PHASE 23
+Cycle-2 Continual Adaptation
+with EWC
+
+
 
 # Phase 22 — Closed-Loop Parameter Adaptation
 
