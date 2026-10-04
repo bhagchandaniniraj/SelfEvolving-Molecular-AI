@@ -1,0 +1,10068 @@
+Yes. Your original workflow is already logically sound; the main change is that **Phase 1 should no longer be “MySQL extraction.”** Instead, the XML/XSD layer becomes the formal data-ingestion layer, while the later geometry, encoder, evaluation, EWC, and closed-loop phases remain conceptually similar.
+
+Your earlier plan used MySQL tables such as `drug`, `drug_property`, `interactant`, and `polypeptide` to obtain structures and target associations. Pasted text With XML, those same concepts should be obtained directly from the hierarchical DrugBank document.
+
+I would rewrite the complete implementation methodology as follows.
+
+# Revised XML-Based Implementation Workflow
+
+## Phase 1 — XML Environment and Dataset Initialization
+
+The implementation begins with DrugBank in its native XML representation rather than importing the XML dump into MySQL.
+
+The primary data resources are:
+
+- `drugbank.xml` — main DrugBank dataset
+- `drugbank.xsd` — structural definition of the DrugBank XML
+- optional historical SQL files — retained only for comparison/documentation, not used during execution
+
+The project should treat:
+
+**XML as the primary data source**, and  
+**XSD as the schema/structural specification**.
+
+The notebook environment should first identify the dataset, schema, XML namespace, DrugBank version, and export metadata.
+
+Conceptually:
+
+```text
+DrugBank XML
+      +
+DrugBank XSD
+      ↓
+Schema-aware XML processing environment
+```
+
+This completely removes the runtime dependency on:
+
+```text
+MySQL Server
+Database creation
+SQL import
+Database credentials
+SQL joins
+SQL query execution
+```
+
+The XML file therefore becomes the authoritative molecular knowledge source for the implementation.
+
+---
+# Phase 2 — XSD-Guided XML Structure Analysis
+
+## Objective
+
+The objective of Phase 2 is to analyze the `drugbank.xsd` schema and formally understand the hierarchical structure of the DrugBank XML dataset before performing large-scale molecular data extraction.
+
+This phase replaces the role previously performed by the MySQL database schema, metadata tables, relational tables, and foreign-key relationships.
+
+No model training, molecular graph construction, or complete XML extraction is performed during this phase.
+
+The main goal is to establish a reliable structural mapping between the DrugBank XSD schema and the XML elements required by the proposed molecular discovery system.
+
+---
+
+## Input Resources
+
+The primary resources used in this phase are:
+
+- `drugbank.xsd` — defines the formal structure, elements, attributes, data types, and multiplicities of the DrugBank XML dataset.
+- `drugbank.xml` — used only for limited structural verification or spot-checking if required.
+- Phase 1 configuration variables, including:
+  - `XSD_PATH`
+  - `XML_PATH`
+  - `XML_NAMESPACE`
+  - `NS`
+  - `NS_TAG`
+  - `DRUGBANK_CONFIG`
+
+The complete 1.5+ GB XML dataset should not be fully processed during Phase 2.
+
+---
+
+## Conceptual Transition from MySQL to XML
+
+Previously, the DrugBank dataset was interpreted using a relational database architecture:
+
+```text
+MySQL Database
+      ↓
+Tables
+      ↓
+Primary Keys / Foreign Keys
+      ↓
+SQL Joins
+      ↓
+Molecular Records
+```
+
+In the revised implementation, the same knowledge is understood directly through the native XML structure:
+
+```text
+DrugBank XSD
+      ↓
+Element Definitions
+      ↓
+Nested XML Relationships
+      ↓
+Molecular Records
+```
+
+Therefore, the XSD becomes the structural reference for understanding the organization and relationships of DrugBank data.
+
+---
+
+## Main Structural Hierarchy to Identify
+
+Phase 2 should identify the main DrugBank structure approximately as follows:
+
+```text
+DrugBank
+ └── Drug
+      ├── DrugBank ID
+      ├── Name
+      ├── Description
+      ├── CAS Number
+      ├── UNII
+      ├── Average Mass
+      ├── Monoisotopic Mass
+      ├── State
+      ├── Groups
+      ├── Calculated Properties
+      ├── Experimental Properties
+      ├── Categories
+      ├── Pathways
+      ├── Drug Interactions
+      ├── Targets
+      ├── Enzymes
+      ├── Carriers
+      ├── Transporters
+      └── Other DrugBank annotations
+```
+
+---
+
+## Element Cardinality and Multiplicity Analysis
+
+An important purpose of Phase 2 is to determine whether each XML element occurs:
+
+- exactly once;
+- optionally;
+- multiple times;
+- or as a nested collection.
+
+For example:
+
+```text
+DrugBank
+ └── drug [multiple records]
+      │
+      ├── drugbank-id [one or more]
+      │    └── primary attribute
+      │
+      ├── name [single]
+      │
+      ├── description [optional]
+      │
+      ├── groups
+      │    └── group [multiple]
+      │
+      ├── calculated-properties
+      │    └── property [multiple]
+      │         ├── kind
+      │         ├── value
+      │         └── source
+      │
+      ├── experimental-properties
+      │    └── property [multiple]
+      │
+      ├── targets
+      │    └── target [multiple]
+      │         ├── id
+      │         ├── name
+      │         ├── organism
+      │         ├── known-action
+      │         ├── actions
+      │         │    └── action [multiple]
+      │         └── polypeptide [zero or multiple]
+      │
+      ├── enzymes
+      │    └── enzyme [multiple]
+      │
+      ├── carriers
+      │    └── carrier [multiple]
+      │
+      ├── transporters
+      │    └── transporter [multiple]
+      │
+      └── pathways
+           └── pathway [multiple]
+```
+
+Understanding these multiplicities is essential because Phase 3 must know whether an element should be accessed as a single value or iterated as a collection.
+
+---
+
+## Structural Mapping for the Baseline Chemical Corpus
+
+Phase 2 should identify the XSD paths required to construct the baseline chemical dataset:
+
+```text
+D_chem
+```
+
+The primary fields of interest are:
+
+```text
+Primary DrugBank ID
+Drug Name
+Drug Type
+SMILES
+InChI
+InChIKey
+Molecular Formula
+Molecular Weight
+Average Mass
+Monoisotopic Mass
+Drug Group
+```
+
+The corresponding structural relationship is conceptually:
+
+```text
+drug
+ ├── drugbank-id
+ ├── name
+ ├── average-mass
+ ├── monoisotopic-mass
+ ├── groups
+ └── calculated-properties
+      └── property
+           ├── kind
+           ├── value
+           └── source
+```
+
+The `calculated-properties` section should be examined carefully because molecular descriptors are represented using repeated `property` elements rather than individual fixed XML fields.
+
+For example:
+
+```text
+property
+ ├── kind = SMILES
+ ├── value = molecular structure
+ └── source = calculation source
+```
+
+Other useful property kinds may include:
+
+```text
+InChI
+InChIKey
+Molecular Formula
+Molecular Weight
+logP
+Polar Surface Area
+Rotatable Bond Count
+Hydrogen Bond Donor Count
+Hydrogen Bond Acceptor Count
+```
+
+Only property types actually supported by the DrugBank XSD/XML should be used.
+
+---
+
+## Structural Mapping for Drug–Target Associations
+
+Phase 2 should identify the hierarchy required to create the biological association dataset:
+
+```text
+D_target
+```
+
+The relevant structure is:
+
+```text
+drug
+ └── targets
+      └── target
+           ├── id
+           ├── name
+           ├── organism
+           ├── known-action
+           ├── actions
+           │    └── action
+           └── polypeptide
+                ├── identifier
+                ├── source
+                └── amino-acid-sequence
+```
+
+The following fields should be marked for later extraction:
+
+```text
+DrugBank ID
+Drug Name
+Target ID
+Target Name
+Target Organism
+Known Action
+Target Action
+Polypeptide ID
+Polypeptide Source
+Amino-Acid Sequence
+```
+
+Multiple targets and multiple polypeptides may exist for a single drug and should therefore be treated as one-to-many relationships.
+
+---
+
+## Structural Mapping for Additional Biological Relationships
+
+The following sections should also be analyzed during Phase 2:
+
+```text
+enzymes
+carriers
+transporters
+```
+
+Each may contain multiple biological interactants.
+
+Conceptually:
+
+```text
+Drug
+ ├── Targets
+ ├── Enzymes
+ ├── Carriers
+ └── Transporters
+```
+
+These relationships may later be used to enrich the molecular knowledge representation or biological relevance model.
+
+They should be structurally documented during Phase 2 even if they are not immediately used during the initial model implementation.
+
+---
+
+## Pathway Structure Analysis
+
+The `pathways` section should also be identified.
+
+Conceptually:
+
+```text
+drug
+ └── pathways
+      └── pathway
+           ├── pathway identifiers
+           ├── pathway name
+           └── associated biological entities
+```
+
+Pathway information may later support biological contextualization or downstream analysis.
+
+It is not necessarily required for the first encoder–decoder experiment but should be included in the schema map.
+
+---
+
+## XML Attribute Analysis
+
+Phase 2 should identify relevant XML attributes in addition to XML elements.
+
+Important examples include:
+
+```text
+drug type
+drugbank-id primary status
+polypeptide identifier
+polypeptide source
+```
+
+For example:
+
+```text
+drugbank-id
+ └── primary="true"
+```
+
+This attribute is required to distinguish the primary DrugBank identifier from secondary identifiers.
+
+Similarly, the `drug` element's type attribute can be used to distinguish:
+
+```text
+small molecule
+biotech
+```
+
+The initial molecular graph pipeline will primarily use small-molecule records.
+
+---
+
+## Namespace Verification
+
+All structural mappings must use the DrugBank XML namespace identified during Phase 1:
+
+```text
+http://www.drugbank.ca
+```
+
+The XSD target namespace and XML namespace have already been confirmed to match.
+
+Therefore, all XML elements used during later extraction must be interpreted within this namespace.
+
+This prevents silent extraction failures caused by querying XML tags without namespace qualification.
+
+---
+
+## XSD-to-ML Mapping
+
+At the end of Phase 2, each required XML element should be associated with its intended downstream role.
+
+Conceptually:
+
+```text
+XSD Element
+     ↓
+XML Field
+     ↓
+ML Dataset Field
+     ↓
+Model Component
+```
+
+For example:
+
+```text
+calculated-properties / SMILES
+            ↓
+Canonical molecular structure
+            ↓
+D_chem
+            ↓
+Molecular graph construction
+            ↓
+Geometry-aware encoder
+```
+
+Another example:
+
+```text
+targets / target / polypeptide
+            ↓
+Drug–target biological relationship
+            ↓
+D_target
+            ↓
+Biological relevance predictor
+```
+
+---
+
+## Expected Phase 2 Output
+
+Phase 2 should produce a documented structural map containing at least:
+
+```text
+1. XML root element
+2. Drug element structure
+3. Important attributes
+4. Element multiplicities
+5. Calculated-property structure
+6. Experimental-property structure
+7. Target hierarchy
+8. Polypeptide hierarchy
+9. Enzyme hierarchy
+10. Carrier hierarchy
+11. Transporter hierarchy
+12. Pathway hierarchy
+13. Required fields for D_chem
+14. Required fields for D_target
+15. Optional fields for later experiments
+```
+
+A conceptual final mapping should resemble:
+
+```text
+DrugBank XML
+      │
+      └── Drug
+           │
+           ├── Molecular Identity
+           │     ├── DrugBank ID
+           │     ├── Name
+           │     └── Drug Type
+           │
+           ├── Molecular Properties
+           │     ├── SMILES
+           │     ├── InChI
+           │     ├── InChIKey
+           │     ├── Formula
+           │     └── Molecular Weight
+           │
+           ├── Pharmacological Metadata
+           │
+           ├── Targets
+           │     ├── Target Metadata
+           │     ├── Actions
+           │     └── Polypeptides
+           │
+           ├── Enzymes
+           ├── Carriers
+           ├── Transporters
+           └── Pathways
+```
+
+---
+
+## Important Boundary of Phase 2
+
+Phase 2 is a schema-analysis phase only.
+
+It should NOT perform:
+
+```text
+Full DrugBank XML extraction
+SMILES standardization
+RDKit molecular filtering
+3-D conformer generation
+Molecular graph construction
+Neural-network training
+Latent-space construction
+Candidate generation
+QED/SA evaluation
+UCB selection
+Fisher Information calculation
+EWC adaptation
+Closed-loop optimization
+```
+
+These operations belong to subsequent phases.
+
+Only a very small XML sample may be inspected if necessary to verify that actual XML records follow the XSD-defined structure.
+
+---
+
+## Phase 2 Completion Criteria
+
+Phase 2 is considered complete when:
+
+1. The DrugBank XSD has been successfully parsed.
+2. The main `<drug>` structure has been identified.
+3. Required XML elements and attributes have been documented.
+4. One-to-one and one-to-many relationships have been identified.
+5. Molecular structure fields required for `D_chem` have been mapped.
+6. Biological association fields required for `D_target` have been mapped.
+7. Targets, enzymes, carriers, transporters, and pathways have been structurally identified.
+8. XML namespace usage has been confirmed.
+9. The XML-to-ML field mapping required for Phase 3 has been established.
+
+---
+
+## Final Phase 2 Workflow
+
+```text
+drugbank.xsd
+      ↓
+Parse XSD Schema
+      ↓
+Identify Drug Element
+      ↓
+Identify Child Elements
+      ↓
+Identify XML Attributes
+      ↓
+Determine Element Multiplicity
+      ↓
+Map Molecular Properties
+      ↓
+Map Target / Protein Relationships
+      ↓
+Map Enzymes / Carriers / Transporters
+      ↓
+Map Pathways
+      ↓
+Define D_chem Fields
+      ↓
+Define D_target Fields
+      ↓
+Create XML-to-ML Structural Mapping
+      ↓
+Phase 2 Complete
+```
+
+---
+====
+# Phase 3 — Streaming DrugBank XML Extraction
+
+## Objective
+
+The objective of Phase 3 is to stream-process the native `drugbank.xml` dataset and extract only the molecular and biological fields validated during Phase 2.
+
+The XML file is approximately 1.5 GB, so it must be processed incrementally rather than loaded into memory as a complete XML tree.
+
+The phase uses the XSD-verified structural mappings established in Phase 2 to create the raw extracted datasets required by later stages of the molecular discovery pipeline.
+
+The two primary outputs are:
+
+```text
+D_chem
+```
+
+for molecular and physicochemical information, and:
+
+```text
+D_target
+```
+
+for DrugBank drug-target and polypeptide associations.
+
+Phase 3 is strictly a streaming extraction and raw dataset construction phase.
+
+It does not yet perform molecular standardization, graph construction, neural-network training, candidate generation, or closed-loop optimization.
+
+---
+
+## Input Resources
+
+Phase 3 uses the following resources:
+
+```text
+drugbank.xml
+drugbank.xsd
+Phase 1 configuration
+Phase 2 schema mappings
+```
+
+Important Phase 1 variables include:
+
+```text
+XML_PATH
+XSD_PATH
+XML_NAMESPACE
+NS
+NS_TAG
+DRUGBANK_CONFIG
+```
+
+Important Phase 2 structures include:
+
+```text
+D_CHEM_SCHEMA
+D_TARGET_SCHEMA
+PHASE2_SCHEMA_MAP
+CALCULATED_PROPERTY_ENUMS
+```
+
+Phase 2 confirmed that all required `D_chem` and `D_target` fields are structurally supported by the XSD.
+
+---
+
+# Conceptual Workflow
+
+```text
+DrugBank XML
+      ↓
+Streaming XML Parser
+      ↓
+Top-Level <drug> Record Detection
+      ↓
+Drug Type Filtering
+      ↓
+Molecular Field Extraction
+      ↓
+Biological Association Extraction
+      ↓
+Raw D_chem
+      +
+Raw D_target
+      ↓
+Extraction Quality-Control Report
+```
+
+---
+
+# Critical Top-Level Drug Record Rule
+
+A major requirement of Phase 3 is to distinguish between a complete DrugBank drug record and nested XML elements that may also be named `<drug>`.
+
+The valid molecular records are only those that satisfy the hierarchy:
+
+```text
+drugbank
+   └── drug
+```
+
+Nested records such as:
+
+```text
+drug
+ └── pathways
+      └── pathway
+           └── drugs
+                └── drug
+```
+
+must not be interpreted as full DrugBank drug records.
+
+Therefore, a candidate `<drug>` element should only be processed when:
+
+```text
+element tag = drug
+AND
+parent tag = drugbank
+```
+
+This prevents incomplete nested drug references from being incorrectly extracted.
+
+The issue was detected during Phase 2 when a nested record produced:
+
+```text
+drug_name = Lepirudin
+drug_id   = None
+drug_type = None
+```
+
+while valid top-level records contained complete DrugBank identifiers and metadata.
+
+---
+
+# Streaming Strategy
+
+The 1.5+ GB XML document should be processed using a memory-efficient streaming parser.
+
+The workflow is:
+
+```text
+Open XML stream
+      ↓
+Read one completed XML element
+      ↓
+Check whether element is a top-level <drug>
+      ↓
+Process required fields
+      ↓
+Store extracted values
+      ↓
+Clear processed element
+      ↓
+Remove processed siblings
+      ↓
+Continue
+```
+
+The complete XML tree should never be constructed in memory.
+
+Memory cleanup should occur immediately after each processed top-level drug record.
+
+---
+
+# Top-Level Drug Filtering
+
+The extraction pipeline should initially focus on DrugBank records whose:
+
+```text
+type = small molecule
+```
+
+because subsequent molecular preprocessing, RDKit processing, conformer generation, and graph construction are designed primarily for discrete small-molecule structures.
+
+Biotech records may be counted for reporting but should not enter the initial molecular graph corpus.
+
+Conceptually:
+
+```text
+Top-Level DrugBank Drug
+       ↓
+Check @type
+       ↓
+small molecule?
+       ├── YES → eligible for D_chem
+       └── NO  → count and skip
+```
+
+This is an experimental inclusion rule and should be documented as such.
+
+---
+
+# D_chem Extraction
+
+The first primary dataset constructed during Phase 3 is:
+
+```text
+D_chem
+```
+
+The Phase 2 schema analysis verified the required molecular fields.
+
+The raw `D_chem` record should contain:
+
+```text
+drug_id
+drug_name
+drug_type
+raw_smiles
+inchi
+inchikey
+molecular_formula
+molecular_weight
+average_mass
+monoisotopic_mass
+groups
+```
+
+The XML relationships are:
+
+```text
+drug
+ ├── drugbank-id[@primary="true"]
+ ├── name
+ ├── @type
+ ├── average-mass
+ ├── monoisotopic-mass
+ ├── groups
+ │    └── group
+ └── calculated-properties
+      └── property
+           ├── kind
+           ├── value
+           └── source
+```
+
+---
+
+# Primary DrugBank Identifier Extraction
+
+Each DrugBank drug may contain multiple `<drugbank-id>` elements.
+
+The primary ID is identified using:
+
+```text
+primary="true"
+```
+
+Therefore the extraction rule is:
+
+```text
+drug
+ └── drugbank-id[@primary="true"]
+```
+
+Only this primary identifier should become:
+
+```text
+drug_id
+```
+
+Secondary DrugBank identifiers may optionally be retained separately for provenance but should not replace the primary identifier.
+
+---
+
+# Calculated Property Extraction
+
+Phase 2 verified that calculated properties contain:
+
+```text
+property
+ ├── kind
+ ├── value
+ └── source
+```
+
+and that the XSD supports, among others:
+
+```text
+SMILES
+InChI
+InChIKey
+Molecular Formula
+Molecular Weight
+logP
+Polar Surface Area (PSA)
+Rotatable Bond Count
+H Bond Acceptor Count
+H Bond Donor Count
+Number of Rings
+```
+
+Phase 3 should extract the fields required for the baseline molecular corpus.
+
+The initially required calculated properties are:
+
+```text
+SMILES
+InChI
+InChIKey
+Molecular Formula
+Molecular Weight
+```
+
+The original value from DrugBank must be preserved as:
+
+```text
+raw_smiles
+```
+
+Phase 3 should not yet chemically standardize or modify this structure.
+
+---
+
+# Group Extraction
+
+A drug may belong to one or more DrugBank groups, such as:
+
+```text
+approved
+investigational
+experimental
+withdrawn
+vet_approved
+```
+
+Phase 3 should preserve all available group values for each drug.
+
+Conceptually:
+
+```text
+drug
+ └── groups
+      ├── group
+      ├── group
+      └── ...
+```
+
+Multiple group values should not be silently discarded.
+
+---
+
+# D_target Extraction
+
+The second primary dataset is:
+
+```text
+D_target
+```
+
+The target hierarchy verified during Phase 2 is:
+
+```text
+drug
+ └── targets
+      └── target
+           ├── id
+           ├── name
+           ├── organism
+           ├── actions
+           │    └── action
+           ├── known-action
+           └── polypeptide
+                ├── @id
+                ├── @source
+                └── amino-acid-sequence
+```
+
+The raw `D_target` dataset should contain:
+
+```text
+drug_id
+drug_name
+raw_smiles
+target_id
+target_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+The molecular structure may be repeated in `D_target` so that biological associations remain directly traceable to the source drug.
+
+---
+
+# Multiple Target Handling
+
+A single DrugBank drug may contain multiple targets.
+
+Therefore the extraction relationship is:
+
+```text
+One Drug
+    ↓
+Zero or More Targets
+```
+
+Phase 3 should create one biological association record for each relevant target relationship.
+
+No target should be discarded simply because another target has already been extracted for the same drug.
+
+---
+
+# Multiple Action Handling
+
+Each target may contain multiple pharmacological actions.
+
+For example:
+
+```text
+inhibitor
+agonist
+antagonist
+binder
+substrate
+```
+
+The hierarchy is:
+
+```text
+target
+ └── actions
+      ├── action
+      ├── action
+      └── ...
+```
+
+All actions should be retained.
+
+They may either be:
+
+```text
+stored as a list
+```
+
+or normalized later into a separate relational-style table.
+
+Phase 3 should preserve the full action information without reducing it to only the first value.
+
+---
+
+# Multiple Polypeptide Handling
+
+Phase 2 confirmed that:
+
+```text
+polypeptide
+minOccurs = 0
+maxOccurs = unbounded
+```
+
+Therefore the pipeline must not use logic that retrieves only the first polypeptide.
+
+Instead:
+
+```text
+For each target
+    ↓
+For each polypeptide
+    ↓
+Create an association record
+```
+
+Each polypeptide record should retain:
+
+```text
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+The Phase 2 schema verified that `id` and `source` are required attributes on the polypeptide element.
+
+---
+
+# Protein Sequence Handling
+
+The amino-acid sequence should be extracted in raw form during Phase 3.
+
+Only lightweight formatting cleanup may be performed, such as:
+
+```text
+strip leading/trailing whitespace
+```
+
+Detailed sequence preprocessing belongs to a later phase.
+
+Phase 3 should retain enough information to preserve source provenance.
+
+If necessary, both can be retained:
+
+```text
+raw_amino_acid_sequence
+clean_amino_acid_sequence
+```
+
+However, full biological sequence normalization is not required in Phase 3.
+
+---
+
+# Biological Relationship Boundary
+
+DrugBank target information represents curated drug-target associations.
+
+It should not automatically be interpreted as quantitative binding affinity.
+
+The Phase 3 dataset therefore represents:
+
+```text
+Drug ↔ Target Association
+```
+
+rather than:
+
+```text
+Drug → measured pIC50
+```
+
+unless measured affinity data are introduced separately later.
+
+The correct downstream terminology should initially be:
+
+```text
+target association
+biological relevance
+bioactivity prioritization
+```
+
+rather than measured binding affinity prediction.
+
+---
+
+# Additional Biological Sections
+
+Phase 2 also verified:
+
+```text
+enzymes
+carriers
+transporters
+```
+
+These sections should be structurally recognized during Phase 3.
+
+The initial implementation may either:
+
+```text
+A. extract them into separate datasets
+```
+
+or:
+
+```text
+B. count and preserve them for later expansion
+```
+
+A recommended structure is:
+
+```text
+D_target
+D_enzyme
+D_carrier
+D_transporter
+```
+
+However, `D_target` remains the primary biological dataset needed for the initial model.
+
+The additional biological datasets may be optional during the first experimental run.
+
+---
+
+# Pathway Data
+
+Phase 2 confirmed that pathways contain:
+
+```text
+pathway
+ ├── smpdb-id
+ ├── name
+ ├── category
+ ├── drugs
+ └── enzymes
+```
+
+Pathways are not required for the initial encoder-decoder experiment.
+
+Phase 3 may therefore:
+
+```text
+count pathway availability
+```
+
+without necessarily constructing a full pathway dataset.
+
+Pathway extraction may be added later if biological contextualization becomes necessary.
+
+---
+
+# Raw Data Preservation
+
+Phase 3 should preserve raw DrugBank values wherever practical.
+
+The principle should be:
+
+```text
+DrugBank value
+      ↓
+Raw extracted value
+      ↓
+Later processed representation
+```
+
+For example:
+
+```text
+raw_smiles
+      ↓
+Phase 4 standardization
+      ↓
+canonical_smiles
+```
+
+The original XML value should not be overwritten during Phase 3.
+
+This ensures traceability and reproducibility.
+
+---
+
+# Duplicate Handling
+
+Phase 3 should avoid aggressive chemical deduplication.
+
+At this stage, the focus is faithful XML extraction.
+
+However, exact duplicate extraction records caused by processing logic should be removed or prevented.
+
+Chemical deduplication based on:
+
+```text
+canonical SMILES
+InChIKey
+molecular structure
+```
+
+should occur later during molecular preprocessing.
+
+Thus:
+
+```text
+XML-record deduplication
+```
+
+may occur in Phase 3, but:
+
+```text
+chemical-identity deduplication
+```
+
+belongs to the next processing phase.
+
+---
+
+# Extraction Limits
+
+For development and debugging, the project may use:
+
+```text
+MAX_MOLECULES = 800
+```
+
+from Phase 1.
+
+However, the limit must apply to:
+
+```text
+unique accepted top-level small-molecule records
+```
+
+and should not depend on the number of target records.
+
+Therefore:
+
+```text
+D_chem limit
+```
+
+and:
+
+```text
+D_target record count
+```
+
+must be controlled independently.
+
+The parser should not use a condition such as:
+
+```text
+stop when D_chem >= 800
+AND D_target >= 800
+```
+
+because target multiplicity differs strongly between drugs.
+
+Instead:
+
+```text
+stop after 800 eligible top-level molecular records
+```
+
+while extracting all target associations belonging to those selected drugs.
+
+---
+
+# Recommended Development Extraction Strategy
+
+For the initial demonstration:
+
+```text
+Top-Level DrugBank Records
+        ↓
+Filter small molecules
+        ↓
+Require primary DrugBank ID
+        ↓
+Extract molecular metadata
+        ↓
+Keep first 800 eligible drug records
+        ↓
+Extract all target relationships for those drugs
+```
+
+This creates:
+
+```text
+D_chem ≈ up to 800 drug records
+```
+
+and potentially:
+
+```text
+D_target > 800 records
+```
+
+because one drug may have multiple targets and polypeptides.
+
+---
+
+# Extraction Quality-Control Counters
+
+Phase 3 should maintain detailed counters.
+
+At minimum:
+
+```text
+Total XML <drug> elements encountered
+Top-level DrugBank drug records
+Nested <drug> references ignored
+Small-molecule records
+Biotech records skipped
+Records with primary DrugBank ID
+Records without primary ID
+Records with calculated properties
+Records with SMILES
+Records without SMILES
+Records with targets
+Total target associations
+Targets with known action
+Targets with polypeptides
+Total polypeptide associations
+Records with amino-acid sequence
+```
+
+These counters become the extraction audit trail.
+
+---
+
+# Recommended Extraction Funnel
+
+The Phase 3 report should conceptually show:
+
+```text
+XML <drug> elements encountered
+          ↓
+Top-level DrugBank drugs
+          ↓
+Small-molecule records
+          ↓
+Primary ID available
+          ↓
+Molecular metadata extracted
+          ↓
+SMILES available
+          ↓
+D_chem records
+          ↓
+Target associations
+          ↓
+Polypeptide associations
+          ↓
+D_target records
+```
+
+---
+
+# Data Integrity Checks
+
+Before Phase 3 is considered complete, verify that:
+
+```text
+drug_id is present
+drug_name is present
+drug_type is valid
+SMILES extraction follows validated property kinds
+target records point to valid extracted drug IDs
+polypeptide IDs retain their source
+no nested pathway <drug> elements entered D_chem
+```
+
+The top-level-record check is especially important.
+
+---
+
+# Phase 3 Output Datasets
+
+The recommended raw output files are:
+
+```text
+data/extracted/D_chem_raw.csv
+data/extracted/D_target_raw.csv
+```
+
+For larger datasets, Parquet may also be used later.
+
+The Phase 3 extraction outputs should preserve source-oriented field names.
+
+Example `D_chem_raw` structure:
+
+```text
+drug_id
+drug_name
+drug_type
+raw_smiles
+inchi
+inchikey
+molecular_formula
+molecular_weight
+average_mass
+monoisotopic_mass
+groups
+```
+
+Example `D_target_raw` structure:
+
+```text
+drug_id
+drug_name
+raw_smiles
+target_id
+target_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+---
+
+# Phase 3 Report Outputs
+
+In addition to raw datasets, Phase 3 should create an extraction report.
+
+Recommended outputs:
+
+```text
+D_chem_raw.csv
+D_target_raw.csv
+phase3_extraction_summary.csv
+phase3_extraction_summary.json
+```
+
+The summary should record:
+
+```text
+DrugBank version
+DrugBank export date
+XML source file
+records encountered
+top-level records
+nested drug elements skipped
+eligible small molecules
+molecules extracted
+SMILES availability
+target association count
+polypeptide association count
+sequence availability
+extraction limit
+```
+
+---
+
+# Phase 3 Completion Criteria
+
+Phase 3 is complete when:
+
+1. The DrugBank XML has been processed using streaming parsing.
+2. Only top-level `drugbank/drug` records have been accepted.
+3. Nested `<drug>` references have been excluded.
+4. Small-molecule records have been correctly identified.
+5. Primary DrugBank IDs have been extracted.
+6. Molecular properties defined in `D_chem` have been extracted.
+7. All target associations for selected drugs have been processed.
+8. Multiple actions have been preserved.
+9. Multiple polypeptides per target have been handled correctly.
+10. Protein identifiers and sequence data have been preserved.
+11. The extraction limit has been applied to molecular records rather than biological association count.
+12. Extraction quality-control statistics have been generated.
+13. `D_chem_raw` has been created.
+14. `D_target_raw` has been created.
+15. The outputs are ready for preprocessing in the next phase.
+
+---
+
+# Important Boundary of Phase 3
+
+Phase 3 should NOT perform:
+
+```text
+SMILES canonicalization
+salt stripping
+largest-fragment selection
+RDKit chemical validation
+heavy-atom filtering
+molecular deduplication
+3-D conformer generation
+graph construction
+fingerprint generation
+encoder training
+latent-space learning
+candidate generation
+QED scoring
+SA scoring
+UCB prioritization
+Fisher Information calculation
+EWC regularization
+closed-loop adaptation
+```
+
+Those operations should occur after raw XML extraction.
+
+This separation ensures that:
+
+```text
+Phase 3 = faithful DrugBank extraction
+```
+
+while later phases handle:
+
+```text
+chemical preprocessing
+ML transformation
+model construction
+closed-loop learning
+```
+
+---
+
+# Final Phase 3 Workflow
+
+```text
+drugbank.xml
+      ↓
+Streaming iterparse
+      ↓
+Detect <drug> completion
+      ↓
+Check parent == <drugbank>
+      │
+      ├── NO → nested reference → ignore
+      │
+      └── YES
+           ↓
+      Check drug type
+           │
+           ├── biotech → count / skip
+           │
+           └── small molecule
+                  ↓
+          Extract Primary DrugBank ID
+                  ↓
+          Extract Molecular Identity
+                  ↓
+          Extract Calculated Properties
+                  ↓
+          Extract Drug Groups
+                  ↓
+               D_chem
+                  │
+                  ├───────────────┐
+                  │               │
+                  ▼               ▼
+              Targets         Other Biological
+                  │             Relationships
+                  ▼
+            Target Metadata
+                  ↓
+               Actions
+                  ↓
+            Polypeptides
+                  ↓
+         Protein Sequences
+                  ↓
+              D_target
+                  ↓
+        Quality-Control Report
+                  ↓
+          Save Raw Datasets
+                  ↓
+          Phase 3 Complete
+```
+
+---
+
+# Next Phase
+
+After Phase 3 is complete, the implementation should proceed to:
+
+## Phase 4 — Molecular Data Cleaning, Standardization and ML-Ready Dataset Construction
+
+Phase 4 will transform the faithfully extracted raw DrugBank data into chemically validated and standardized molecular records suitable for RDKit processing, graph generation, and downstream model training.
+
+
+
+====
+---
+
+========
+# Phase 4 — XML-to-ML Intermediate Dataset Construction
+
+## Objective
+
+The objective of Phase 4 is to transform the raw structured outputs produced during Phase 3 into reusable intermediate datasets for machine-learning and downstream computational experiments.
+
+The DrugBank XML file remains the authoritative source of the data, but the neural-network pipeline should not repeatedly scan the complete 1.5+ GB XML document during every experiment.
+
+Instead, the workflow becomes:
+
+```text
+DrugBank XML
+      ↓
+One-Time Streaming Extraction
+      ↓
+Raw Structured Datasets
+      ↓
+ML Working Representation
+      ↓
+Repeated Model Experiments
+```
+
+This phase therefore creates the computational working layer between the original DrugBank XML dataset and the later molecular preprocessing, graph construction, and neural-network stages.
+
+---
+
+## Purpose of the Intermediate Representation
+
+The native DrugBank XML document is optimized for hierarchical data storage and distribution rather than repeated machine-learning access.
+
+Repeatedly scanning the complete XML file for every experiment would:
+
+- increase execution time;
+- repeatedly perform XML parsing;
+- increase unnecessary disk I/O;
+- complicate reproducibility;
+- make experimentation slower;
+- tightly couple later model stages to the original XML document.
+
+Therefore, DrugBank XML should be parsed once during the extraction stage and converted into structured intermediate datasets.
+
+The relationship should be:
+
+```text
+Authoritative Source
+DrugBank XML
+      ↓
+Structured Extraction
+      ↓
+Intermediate Computational Representation
+      ↓
+ML Preprocessing and Modeling
+```
+
+The XML remains the source of truth.
+
+The intermediate files are derived computational representations used by the proposed system.
+
+---
+
+## Input from Phase 3
+
+Phase 4 should primarily consume the outputs generated during Phase 3:
+
+```text
+D_chem_raw
+D_target_raw
+phase3_extraction_summary
+```
+
+The raw molecular dataset contains molecular identity and property information.
+
+The raw target dataset contains DrugBank drug-target and protein associations.
+
+Phase 4 should not normally rescan `drugbank.xml`.
+
+---
+
+# Primary Intermediate Datasets
+
+For the current implementation, the two required intermediate datasets are:
+
+```text
+D_chem
+D_target
+```
+
+Additional biological datasets may later be created for:
+
+```text
+D_enzyme
+D_carrier
+D_transporter
+D_pathway
+```
+
+However, these additional datasets should only be created when the corresponding information has been explicitly extracted from DrugBank.
+
+They should not be assumed to exist merely because their XML structures were identified during Phase 2.
+
+---
+
+# 1. Drug Molecular Dataset — D_chem
+
+The molecular working dataset should preserve the DrugBank molecular identity and physicochemical fields required by later molecular preprocessing.
+
+Recommended structure:
+
+```text
+drug_id
+drug_name
+drug_type
+raw_smiles
+inchi
+inchikey
+molecular_formula
+molecular_weight
+average_mass
+monoisotopic_mass
+groups
+```
+
+Optional provenance fields may also be retained:
+
+```text
+secondary_drugbank_ids
+smiles_source
+inchi_source
+inchikey_source
+molecular_formula_source
+molecular_weight_source
+```
+
+Conceptually:
+
+```text
+DrugBank Drug Record
+      ↓
+Molecular Identity
+      ↓
+D_chem
+```
+
+This dataset becomes the primary input for later chemical cleaning, standardization, RDKit validation, and molecular graph generation.
+
+---
+
+# 2. Drug–Target Dataset — D_target
+
+The biological association working dataset should preserve the DrugBank drug-target relationships extracted during Phase 3.
+
+Recommended structure:
+
+```text
+drug_id
+drug_name
+raw_smiles
+target_id
+target_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+Conceptually:
+
+```text
+Drug
+ ↓
+Target
+ ↓
+Action
+ ↓
+Polypeptide
+ ↓
+Protein Sequence
+ ↓
+D_target
+```
+
+One drug may therefore correspond to multiple rows because:
+
+```text
+One Drug
+   ↓
+Multiple Targets
+   ↓
+Multiple Polypeptides
+```
+
+The dataset should preserve this one-to-many biological structure.
+
+---
+
+# Drug–Target Terminology
+
+The DrugBank target dataset should be treated as a curated biological association dataset.
+
+It should represent:
+
+```text
+Drug ↔ Target Association
+```
+
+and not automatically be interpreted as:
+
+```text
+Drug → Quantitative Binding Affinity
+```
+
+unless a separate quantitative bioactivity dataset containing values such as:
+
+```text
+IC50
+Ki
+Kd
+EC50
+pIC50
+```
+
+is introduced later.
+
+Therefore, appropriate terminology for the current DrugBank-derived dataset includes:
+
+```text
+target association
+biological relevance
+drug-target relationship
+bioactivity prioritization
+```
+
+---
+
+# 3. Optional Drug–Enzyme Dataset
+
+If enzyme information is explicitly extracted in a later extraction extension, an intermediate dataset may be created as:
+
+```text
+D_enzyme
+```
+
+Possible fields include:
+
+```text
+drug_id
+enzyme_id
+enzyme_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+This dataset can support metabolism-related or enzyme-interaction analysis.
+
+It is optional for the first implementation.
+
+---
+
+# 4. Optional Drug–Carrier Dataset
+
+If carrier relationships are extracted, they may be stored as:
+
+```text
+D_carrier
+```
+
+Possible fields include:
+
+```text
+drug_id
+carrier_id
+carrier_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+This is an optional enrichment dataset.
+
+---
+
+# 5. Optional Drug–Transporter Dataset
+
+Transporter relationships may similarly form:
+
+```text
+D_transporter
+```
+
+with a structure such as:
+
+```text
+drug_id
+transporter_id
+transporter_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+```
+
+This dataset can later support drug transport and disposition-related analyses.
+
+---
+
+# 6. Optional Pathway Dataset
+
+DrugBank pathway information may eventually be represented as:
+
+```text
+D_pathway
+```
+
+with fields such as:
+
+```text
+drug_id
+smpdb_id
+pathway_name
+pathway_category
+```
+
+Pathway information is not required for the initial molecular encoder-decoder experiment and may remain optional.
+
+---
+
+# Raw vs. Processed Dataset Separation
+
+Phase 4 should preserve a clear distinction between:
+
+```text
+Raw Extracted Dataset
+```
+
+and:
+
+```text
+Processed ML Dataset
+```
+
+For example:
+
+```text
+D_chem_raw
+      ↓
+Phase 4 intermediate organization
+      ↓
+D_chem
+      ↓
+Later chemical preprocessing
+      ↓
+D_chem_processed
+```
+
+Similarly:
+
+```text
+D_target_raw
+      ↓
+D_target
+      ↓
+Later sequence / biological preprocessing
+```
+
+This separation improves traceability and reproducibility.
+
+---
+
+# Recommended Storage Format
+
+CSV files are useful for:
+
+- human inspection;
+- debugging;
+- documentation;
+- small experimental subsets.
+
+However, for repeated machine-learning use, the preferred computational representation should also include:
+
+```text
+Parquet
+```
+
+because it provides:
+
+- faster loading;
+- better preservation of data types;
+- smaller storage size;
+- efficient column-based access;
+- reduced parsing overhead compared with CSV.
+
+Therefore, Phase 4 may preserve both:
+
+```text
+CSV → documentation / inspection
+Parquet → computational working dataset
+```
+
+For example:
+
+```text
+D_chem.csv
+D_chem.parquet
+
+D_target.csv
+D_target.parquet
+```
+
+The original DrugBank XML remains unchanged.
+
+---
+
+# Intermediate Dataset Validation
+
+Before Phase 4 is considered complete, the intermediate datasets should undergo structural—not chemical—validation.
+
+For `D_chem`, verify:
+
+```text
+drug_id exists
+drug_id is unique
+drug_name is available
+drug_type is preserved
+raw_smiles remains unchanged
+source fields are preserved
+```
+
+For `D_target`, verify:
+
+```text
+drug_id exists
+drug_id belongs to D_chem
+target relationships are preserved
+multiple target rows remain intact
+multiple polypeptide rows remain intact
+actions are preserved
+protein identifiers are preserved
+```
+
+Phase 4 should not remove chemically invalid molecules merely because their SMILES cannot later be processed.
+
+Chemical validation belongs to the next phase.
+
+---
+
+# Data Lineage
+
+Every intermediate dataset should retain a traceable relationship to the original DrugBank source.
+
+The lineage is:
+
+```text
+DrugBank XML
+      ↓
+DrugBank Version / Export Date
+      ↓
+Phase 3 Raw Extraction
+      ↓
+Phase 4 Intermediate Dataset
+      ↓
+Later ML Dataset
+```
+
+Important metadata to preserve include:
+
+```text
+DrugBank version
+DrugBank export date
+source XML filename
+Phase 3 extraction configuration
+molecule extraction limit
+generation timestamp
+```
+
+This provides reproducibility for later experiments.
+
+---
+
+# Role of Phase 4 in the Revised Architecture
+
+Under the previous MySQL implementation:
+
+```text
+DrugBank
+   ↓
+MySQL
+   ↓
+SQL Queries
+   ↓
+Model Input
+```
+
+Under the revised implementation:
+
+```text
+DrugBank XML
+      ↓
+Streaming Extraction
+      ↓
+Intermediate Dataset
+      ↓
+ML Preprocessing
+      ↓
+Model Input
+```
+
+Therefore, the intermediate dataset performs the practical role previously provided by database queries without requiring:
+
+```text
+MySQL Server
+Database Import
+SQL Joins
+Database Maintenance
+```
+
+---
+
+# Important Boundary of Phase 4
+
+Phase 4 should NOT yet perform:
+
+```text
+RDKit molecular validation
+SMILES canonicalization
+salt removal
+fragment selection
+heavy-atom filtering
+chemical deduplication
+3-D conformer generation
+molecular graph generation
+Morgan fingerprint generation
+neural-network training
+latent-space learning
+candidate generation
+QED scoring
+SA scoring
+UCB acquisition
+Fisher Information calculation
+EWC regularization
+closed-loop adaptation
+```
+
+These operations belong to later stages.
+
+Phase 4 is concerned with:
+
+```text
+data organization
+data serialization
+dataset linkage
+structural validation
+computational accessibility
+provenance
+```
+
+---
+
+# Phase 4 Output
+
+The minimum required outputs are:
+
+```text
+data/processed/D_chem.csv
+data/processed/D_chem.parquet
+
+data/processed/D_target.csv
+data/processed/D_target.parquet
+```
+
+Additional metadata outputs may include:
+
+```text
+phase4_dataset_summary.csv
+phase4_dataset_summary.json
+```
+
+Optional future outputs include:
+
+```text
+D_enzyme
+D_carrier
+D_transporter
+D_pathway
+```
+
+only if those relationships have first been extracted from the XML.
+
+---
+
+# Phase 4 Completion Criteria
+
+Phase 4 is complete when:
+
+1. `D_chem_raw` has been converted into the reusable molecular working dataset.
+2. `D_target_raw` has been converted into the reusable biological association dataset.
+3. Drug identifiers remain traceable to the DrugBank source.
+4. Target records remain linked to valid molecular records.
+5. One-to-many target and polypeptide relationships have been preserved.
+6. Raw molecular values remain unchanged.
+7. CSV working files have been generated.
+8. Parquet computational files have been generated.
+9. Dataset summary metadata has been recorded.
+10. Later experiments can load the intermediate datasets without rescanning the full DrugBank XML file.
+
+---
+
+# Final Phase 4 Workflow
+
+```text
+Phase 3 Outputs
+      │
+      ├── D_chem_raw
+      │
+      └── D_target_raw
+              ↓
+      Structural Validation
+              ↓
+      Preserve Raw Values
+              ↓
+      Preserve Dataset Relationships
+              ↓
+      Create Working DataFrames
+              ↓
+      Save CSV Representation
+              ↓
+      Save Parquet Representation
+              ↓
+      Save Dataset Metadata
+              ↓
+      ML-Accessible Intermediate Dataset
+              ↓
+         Phase 4 Complete
+```
+
+---
+
+# Next Phase
+
+After Phase 4, the workflow should proceed to:
+
+PHASE 5 — MOLECULAR DATASET QUALITY CONTROL AND CHEMICAL STANDARDIZATION
+
+OBJECTIVE
+
+Phase 5 converts the Phase 4 molecular working dataset into a chemically validated and standardized molecular corpus suitable for downstream geometry generation and molecular graph construction.
+
+INPUT
+
+D_chem
+
+OUTPUT
+
+D_chem_standardized
+
+IMPORTANT PRINCIPLE
+
+Do not overwrite the Phase 3 or Phase 4 datasets.
+
+Maintain the lineage:
+
+DrugBank XML
+    ↓
+D_chem_raw
+    ↓
+D_chem
+    ↓
+D_chem_standardized
+
+The raw DrugBank values must remain preserved for traceability and reproducibility.
+
+
+==================================================
+PHASE 5 WORKFLOW
+==================================================
+
+D_chem
+    ↓
+Check molecular structure availability
+    ↓
+Remove / flag records without usable SMILES
+    ↓
+RDKit SMILES parsing
+    ↓
+Molecular sanitization
+    ↓
+Fragment analysis
+    ↓
+Salt / disconnected-component handling
+    ↓
+Canonical SMILES generation
+    ↓
+Standardized molecular representation
+    ↓
+Molecular QC descriptor calculation
+    ↓
+Chemical duplicate analysis
+    ↓
+Final validated molecular corpus
+    ↓
+D_chem_standardized
+
+
+==================================================
+1. RAW STRUCTURE PRESERVATION
+==================================================
+
+The original molecular information must not be overwritten.
+
+Retain:
+
+drug_id
+drug_name
+drug_type
+raw_smiles
+inchi
+inchikey
+molecular_formula
+molecular_weight
+average_mass
+monoisotopic_mass
+groups
+
+Add new derived fields such as:
+
+canonical_smiles
+standardized_smiles
+structure_status
+fragment_count
+heavy_atom_count
+formal_charge
+rdkit_molecular_weight
+
+This preserves the original DrugBank representation while also creating a standardized form for modeling.
+
+
+==================================================
+2. MISSING SMILES HANDLING
+==================================================
+
+Phase 4 identified a small number of molecular records without SMILES.
+
+These records should not be silently deleted.
+
+They should be explicitly flagged with a reason such as:
+
+MISSING_SMILES
+
+The excluded records should be written into a separate QC file, for example:
+
+phase5_excluded_molecules.csv
+
+Recommended fields:
+
+drug_id
+drug_name
+raw_smiles
+exclusion_reason
+
+
+==================================================
+3. RDKit SMILES VALIDATION
+==================================================
+
+Each available raw SMILES should be parsed using RDKit.
+
+Conceptually:
+
+raw_smiles
+    ↓
+RDKit MolFromSmiles
+    ↓
+Valid / Invalid
+
+Possible status values:
+
+PARSE_OK
+PARSE_FAILED
+
+Any failed structure should be retained in the QC/rejection report.
+
+
+==================================================
+4. MOLECULAR SANITIZATION
+==================================================
+
+Successfully parsed molecules should undergo RDKit molecular sanitization.
+
+Possible status values:
+
+VALID
+PARSE_FAILED
+SANITIZATION_FAILED
+
+The pipeline should handle failures gracefully and should not terminate because of one problematic molecule.
+
+
+==================================================
+5. FRAGMENT ANALYSIS
+==================================================
+
+Before removing salts or disconnected components, first analyze the molecular representation.
+
+Calculate:
+
+fragment_count
+is_multifragment
+
+Example:
+
+CCN.Cl
+
+contains multiple disconnected molecular fragments.
+
+Do not simply select the longest SMILES string.
+
+Fragment handling should be based on chemical structure using RDKit.
+
+
+==================================================
+6. SALT / FRAGMENT STANDARDIZATION
+==================================================
+
+Use RDKit molecular standardization tools where appropriate.
+
+Conceptual workflow:
+
+raw molecule
+    ↓
+fragment / salt analysis
+    ↓
+fragment-parent or standardized-parent molecule
+    ↓
+standardized molecular representation
+
+Preserve both:
+
+raw_smiles
+standardized_smiles
+
+The original DrugBank structure should never be replaced or lost.
+
+
+==================================================
+7. CANONICAL SMILES GENERATION
+==================================================
+
+For successfully validated molecules, generate:
+
+canonical_smiles
+
+Canonical SMILES will be useful for:
+
+reproducibility
+duplicate detection
+molecular graph generation
+structure comparison
+model input preparation
+
+A difference between raw_smiles and canonical_smiles is not an error.
+
+It only means RDKit generated a canonical molecular representation.
+
+
+==================================================
+8. MOLECULAR QC DESCRIPTORS
+==================================================
+
+Calculate useful molecular quality-control descriptors before applying any size restrictions.
+
+Recommended descriptors:
+
+atom_count
+heavy_atom_count
+fragment_count
+formal_charge
+rdkit_molecular_weight
+num_rings
+num_rotatable_bonds
+hbond_donors
+hbond_acceptors
+
+These descriptors can later be used both for:
+
+model filtering
+
+and
+
+research-paper statistical analysis.
+
+
+==================================================
+9. MOLECULAR WEIGHT CONSISTENCY CHECK
+==================================================
+
+Compare:
+
+DrugBank molecular_weight
+
+with:
+
+RDKit calculated molecular weight
+
+Store the difference as a diagnostic value.
+
+Example fields:
+
+drugbank_molecular_weight
+rdkit_molecular_weight
+molecular_weight_difference
+
+Do not automatically reject a molecule because these values differ.
+
+Differences can occur due to:
+
+salts
+counterions
+fragment handling
+charge states
+representation differences
+
+
+==================================================
+10. HEAVY-ATOM HANDLING
+==================================================
+
+Do not initially define molecules outside a certain heavy-atom range as chemically invalid.
+
+First calculate:
+
+heavy_atom_count
+
+Then inspect its distribution.
+
+If a later geometry or EGNN stage requires a size restriction, such as:
+
+4–80 heavy atoms
+
+that restriction should be described as:
+
+MODEL FEASIBILITY FILTER
+
+and not as:
+
+CHEMICAL VALIDITY FILTER
+
+This distinction is important for the methodology.
+
+
+==================================================
+11. CHEMICAL DUPLICATE ANALYSIS
+==================================================
+
+Duplicate molecules should be identified using standardized molecular identity.
+
+Possible duplicate keys:
+
+canonical_smiles
+standardized_smiles
+InChIKey
+
+Do not simply drop records immediately.
+
+First identify duplicate groups.
+
+DrugBank may contain different DrugBank IDs associated with chemically equivalent or closely related molecular representations.
+
+Recommended fields:
+
+duplicate_group_id
+duplicate_count
+is_duplicate
+
+A clear rule can then be applied for the baseline model corpus.
+
+
+==================================================
+12. DRUG-TARGET LINKAGE PRESERVATION
+==================================================
+
+Phase 4 verified that D_target is correctly linked to D_chem.
+
+Phase 5 must preserve this relationship.
+
+When molecules are excluded from D_chem_standardized, create a list of retained DrugBank IDs.
+
+This allows later biological datasets to be filtered consistently.
+
+Conceptually:
+
+D_chem
+    ↓
+Chemical QC
+    ↓
+Retained Drug IDs
+    ↓
+D_chem_standardized
+    ↓
+Corresponding D_target subset
+
+However, the original D_target dataset should remain unchanged.
+
+
+==================================================
+13. QC / EXCLUSION REASONS
+==================================================
+
+Every excluded record should have an explicit reason.
+
+Recommended exclusion labels:
+
+MISSING_SMILES
+PARSE_FAILED
+SANITIZATION_FAILED
+STANDARDIZATION_FAILED
+INVALID_STRUCTURE
+MODEL_SIZE_FILTER
+
+Multiple reasons may be recorded if necessary.
+
+This provides a reproducible audit trail.
+
+
+==================================================
+14. RECOMMENDED PHASE 5 OUTPUTS
+==================================================
+
+Main standardized molecular dataset:
+
+D_chem_standardized.csv
+D_chem_standardized.parquet
+
+Excluded / failed molecules:
+
+phase5_excluded_molecules.csv
+
+QC report:
+
+phase5_qc_summary.csv
+phase5_qc_summary.json
+
+Optional duplicate report:
+
+phase5_duplicate_report.csv
+
+
+==================================================
+15. PHASE 5 COMPLETION CRITERIA
+==================================================
+
+Phase 5 is complete when:
+
+1. All D_chem records have been evaluated for structure availability.
+
+2. All available SMILES have been tested with RDKit.
+
+3. Parsing failures have been recorded.
+
+4. Molecular sanitization has been performed.
+
+5. Fragment counts have been determined.
+
+6. Salt / fragment standardization has been applied where appropriate.
+
+7. Canonical SMILES have been generated.
+
+8. Standardized SMILES have been generated.
+
+9. Molecular QC descriptors have been calculated.
+
+10. Molecular-weight consistency has been assessed.
+
+11. Chemical duplicates have been identified.
+
+12. Excluded molecules have explicit QC reasons.
+
+13. Original raw molecular values remain preserved.
+
+14. D_chem_standardized has been created.
+
+15. The final dataset is ready for geometry generation and molecular graph construction.
+
+
+==================================================
+IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 5 SHOULD perform:
+
+SMILES validation
+RDKit molecule parsing
+molecular sanitization
+fragment analysis
+salt / parent standardization
+canonical SMILES generation
+chemical duplicate analysis
+molecular QC descriptor calculation
+chemical consistency checks
+
+
+Phase 5 SHOULD NOT perform:
+
+3-D conformer generation
+molecular graph construction
+EGNN processing
+fingerprint-based model training
+encoder training
+decoder training
+latent-space learning
+candidate generation
+QED optimization
+SA optimization
+UCB acquisition
+Fisher information calculation
+EWC regularization
+closed-loop learning
+
+
+==================================================
+FINAL PHASE 5 DATA FLOW
+==================================================
+
+D_chem
+    ↓
+Structure Availability Check
+    ↓
+RDKit Parse
+    ↓
+Sanitization
+    ↓
+Fragment Analysis
+    ↓
+Salt / Parent Standardization
+    ↓
+Canonical SMILES
+    ↓
+QC Descriptor Calculation
+    ↓
+Duplicate Analysis
+    ↓
+QC Exclusion Report
+    ↓
+D_chem_standardized
+    ↓
+Ready for Geometry and Graph Construction
+
+
+NEXT PHASE
+
+Phase 6 — Geometry-Aware Molecular Graph Construction---
+====================
+PHASE 6 — DRUGBANK-GROUNDED BIOLOGICAL ASSOCIATION CONSTRUCTION
+
+OBJECTIVE
+
+Phase 6 constructs the biological knowledge layer associated with the chemically validated molecular corpus produced in Phase 5.
+
+The primary biological input is:
+
+D_target_standardized_subset
+
+which already contains DrugBank target associations corresponding only to molecules retained in:
+
+D_chem_standardized
+
+
+==================================================
+CORE DATA RELATIONSHIP
+==================================================
+
+D_chem_standardized
+        ↓
+Retained DrugBank IDs
+        ↓
+D_target_standardized_subset
+        ↓
+Drug–Target Biological Association Layer
+
+
+Conceptually:
+
+Drug
+  ↕
+Standardized Molecular Structure
+  ↕
+DrugBank Target
+  ↕
+Protein / Polypeptide
+  ↕
+Action / Known Action
+  ↕
+Biological Relevance
+
+
+==================================================
+PRIMARY PHASE 6 DATASET
+==================================================
+
+The initial biological association dataset should be constructed from:
+
+D_target_standardized_subset
+
+Recommended fields:
+
+drug_id
+drug_name
+standardized_smiles
+target_id
+target_name
+organism
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+
+
+The standardized molecular representation should be linked from:
+
+D_chem_standardized
+
+using:
+
+drug_id
+
+
+==================================================
+IMPORTANT TERMINOLOGY
+==================================================
+
+DrugBank target associations represent curated biological relationships.
+
+They do NOT automatically represent experimentally measured:
+
+IC50
+Ki
+Kd
+EC50
+pIC50
+binding affinity
+
+Therefore, Phase 6 should describe the resulting information as:
+
+DrugBank-grounded biological association
+DrugBank-grounded biological relevance
+Target association
+Bioactivity prioritization layer
+
+It should NOT be described as a quantitative binding-affinity dataset unless a separate experimentally grounded quantitative dataset is introduced later.
+
+
+==================================================
+TARGET ASSOCIATION HANDLING
+==================================================
+
+One drug may have:
+
+multiple targets
+multiple actions
+multiple polypeptides
+
+Therefore:
+
+One Drug
+   ↓
+Multiple Target Associations
+   ↓
+Multiple Biological Actions
+   ↓
+Zero / One / Multiple Polypeptides
+
+
+Do not collapse these relationships into a single target per drug.
+
+Preserve the complete one-to-many biological structure.
+
+
+==================================================
+KNOWN ACTION
+==================================================
+
+Preserve the DrugBank field:
+
+known_action
+
+Possible values should remain as provided by DrugBank.
+
+This field can later help distinguish:
+
+known biological relationships
+
+from:
+
+less-characterized associations
+
+
+However, known_action should not be interpreted as a quantitative activity measurement.
+
+
+==================================================
+ACTION INFORMATION
+==================================================
+
+Preserve all available target actions.
+
+Examples may include:
+
+inhibitor
+agonist
+antagonist
+activator
+binder
+substrate
+
+Multiple actions should not be reduced to only the first action.
+
+The action information may later contribute to biological relevance scoring or target-specific candidate prioritization.
+
+
+==================================================
+PROTEIN / POLYPEPTIDE INFORMATION
+==================================================
+
+Preserve:
+
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+
+The protein sequence provides a biological representation associated with the target.
+
+Phase 6 should not require every association to contain a protein sequence.
+
+Rows without polypeptide information may still represent valid DrugBank target associations.
+
+Therefore:
+
+missing protein sequence
+≠
+invalid target association
+
+
+==================================================
+ORGANISM INFORMATION
+==================================================
+
+Preserve the organism field.
+
+Human and non-human target associations should not initially be silently mixed into one biological interpretation.
+
+Recommended derived field:
+
+is_human_target
+
+For example:
+
+organism = Humans
+        ↓
+is_human_target = True
+
+Other organisms:
+
+is_human_target = False
+
+
+This enables later experiments to select:
+
+all DrugBank associations
+
+or
+
+human-specific target associations
+
+
+without modifying the original dataset.
+
+
+==================================================
+BIOLOGICAL ASSOCIATION IDENTIFIERS
+==================================================
+
+Create a stable association identifier for each biological record.
+
+For example:
+
+association_id
+
+constructed from:
+
+drug_id
+target_id
+polypeptide_id
+
+This improves traceability across later model stages.
+
+
+==================================================
+BIOLOGICAL ASSOCIATION QC
+==================================================
+
+Phase 6 should calculate:
+
+number of retained drugs with targets
+number of retained drugs without targets
+total target associations
+unique targets
+unique organisms
+human target associations
+non-human target associations
+known-action associations
+unknown-action associations
+associations with actions
+associations without actions
+associations with polypeptide IDs
+associations without polypeptide IDs
+associations with protein sequence
+associations without protein sequence
+
+
+==================================================
+IMPORTANT LINKAGE VALIDATION
+==================================================
+
+Verify:
+
+Every biological record
+        ↓
+belongs to a drug in
+        ↓
+D_chem_standardized
+
+
+No orphan biological association should enter the Phase 6 working dataset.
+
+
+==================================================
+ADDITIONAL BIOLOGICAL RELATIONSHIPS
+==================================================
+
+DrugBank also contains:
+
+Enzymes
+Carriers
+Transporters
+
+However, Phase 3 did not construct full dedicated datasets for these relationships.
+
+Therefore Phase 6 should NOT pretend that:
+
+D_enzyme
+D_carrier
+D_transporter
+
+already exist.
+
+
+For the first implementation:
+
+D_target
+
+should remain the primary biological knowledge layer.
+
+
+Enzyme, carrier and transporter relationships may later be added through a dedicated XML extraction extension:
+
+Drug
+ ├── Targets
+ ├── Enzymes
+ ├── Carriers
+ └── Transporters
+
+
+Possible future datasets:
+
+D_target_bio
+D_enzyme
+D_carrier
+D_transporter
+
+
+But these additional datasets are optional for the initial model.
+
+
+==================================================
+RECOMMENDED PHASE 6 OUTPUT
+==================================================
+
+Primary dataset:
+
+D_bio_association.csv
+D_bio_association.parquet
+
+
+Recommended fields:
+
+association_id
+drug_id
+drug_name
+standardized_smiles
+target_id
+target_name
+organism
+is_human_target
+known_action
+actions
+polypeptide_id
+polypeptide_source
+amino_acid_sequence
+
+
+Additional outputs:
+
+phase6_biological_qc_summary.csv
+phase6_biological_qc_summary.json
+
+
+==================================================
+ROLE IN THE LATER MODEL
+==================================================
+
+The Phase 6 dataset should support:
+
+target-aware molecular analysis
+biological relevance scoring
+candidate prioritization
+surrogate biological relevance prediction
+closed-loop molecular discovery
+
+
+The interpretation should remain:
+
+Molecule
+   ↓
+DrugBank-grounded target association
+   ↓
+Biological relevance signal
+
+
+NOT:
+
+Molecule
+   ↓
+Measured binding affinity
+
+
+unless quantitative experimental affinity data are later introduced.
+
+
+==================================================
+PHASE 6 SHOULD NOT PERFORM
+==================================================
+
+binding-affinity prediction
+pIC50 regression
+IC50 regression
+Ki regression
+Kd regression
+molecular graph construction
+3-D conformer generation
+encoder training
+decoder training
+candidate generation
+QED scoring
+SA scoring
+UCB acquisition
+Fisher information
+EWC
+closed-loop adaptation
+
+
+==================================================
+PHASE 6 COMPLETION CRITERIA
+==================================================
+
+Phase 6 is complete when:
+
+1. D_target_standardized_subset has been loaded.
+
+2. All biological records are linked to D_chem_standardized.
+
+3. Standardized molecular structures are attached using drug_id.
+
+4. Multiple targets per drug remain preserved.
+
+5. Multiple actions remain preserved.
+
+6. Multiple polypeptide associations remain preserved.
+
+7. Organism information remains preserved.
+
+8. Human and non-human associations can be distinguished.
+
+9. Known-action information remains preserved.
+
+10. Protein identifiers and protein sequences remain preserved where available.
+
+11. Missing protein sequences are documented rather than treated as invalid associations.
+
+12. Biological QC statistics have been generated.
+
+13. D_bio_association has been created.
+
+14. No quantitative affinity claims are introduced without supporting experimental data.
+
+15. The dataset is ready for later biological relevance modeling.
+
+
+==================================================
+FINAL PHASE 6 WORKFLOW
+==================================================
+
+D_chem_standardized
+        +
+D_target_standardized_subset
+        ↓
+Validate Drug-ID Linkage
+        ↓
+Attach Standardized Molecular Representation
+        ↓
+Preserve Target Associations
+        ↓
+Preserve Actions
+        ↓
+Preserve Organism
+        ↓
+Preserve Polypeptide Information
+        ↓
+Identify Human / Non-Human Associations
+        ↓
+Construct Association IDs
+        ↓
+Biological QC
+        ↓
+D_bio_association
+        ↓
+DrugBank-Grounded Biological Knowledge Layer
+
+
+NEXT PHASE
+
+Phase 7 — Geometry-Aware Molecular Graph Construction
+
+
+====================
+
+---
+PHASE 7 — GEOMETRY-AWARE MOLECULAR GRAPH CONSTRUCTION
+
+
+OBJECTIVE
+
+Phase 7 converts the chemically standardized molecular corpus produced in
+Phase 5 into geometry-aware attributed molecular graphs suitable for the
+subsequent SE(3)-equivariant molecular encoder.
+
+The molecular graph representation is:
+
+G = (V, E, X, R)
+
+where:
+
+V = molecular atoms
+E = chemical bonds / graph connectivity
+X = rotation- and translation-invariant atomic attributes
+R = three-dimensional Cartesian atomic coordinates
+
+
+==================================================
+PRIMARY INPUT
+==================================================
+
+D_chem_standardized
+
+
+Phase 5 produced:
+
+789 chemically standardized molecules
+
+
+Phase 5 also identified:
+
+769 molecules within the 4–80 heavy-atom model-feasibility range
+
+20 molecules outside the 4–80 heavy-atom range
+
+
+IMPORTANT:
+
+The 4–80 heavy-atom criterion is NOT a chemical-validity criterion.
+
+It is a:
+
+MODEL FEASIBILITY CRITERION
+
+for the first geometry-aware neural-network experiment.
+
+
+Therefore:
+
+D_chem_standardized
+
+must remain unchanged.
+
+
+Phase 7 should create separate geometry/model datasets.
+
+
+==================================================
+PHASE 7 DATA FLOW
+==================================================
+
+D_chem_standardized
+        ↓
+Model-Feasibility Screening
+        ↓
+4–80 Heavy-Atom Criterion
+        ↓
+Eligible Molecular Structures
+        ↓
+RDKit Molecular Reconstruction
+        ↓
+Explicit Hydrogen Addition
+        ↓
+3-D Conformer Generation
+        ↓
+Geometry Optimization
+        ↓
+Conformer Quality Validation
+        ↓
+Atomic Feature Construction
+        ↓
+Bond / Edge Feature Construction
+        ↓
+Coordinate Extraction
+        ↓
+Graph Validation
+        ↓
+Geometry-Aware Molecular Graph
+
+G = (V, E, X, R)
+
+
+==================================================
+1. MODEL-FEASIBILITY FILTER
+==================================================
+
+Use the heavy_atom_count calculated in Phase 5.
+
+For the initial geometry-aware experiment:
+
+MIN_HEAVY_ATOMS = 4
+MAX_HEAVY_ATOMS = 80
+
+
+Retain molecules satisfying:
+
+4 <= heavy_atom_count <= 80
+
+
+IMPORTANT:
+
+Molecules outside this range should NOT be labelled chemically invalid.
+
+They should be labelled:
+
+MODEL_SIZE_FILTER
+
+
+Therefore create:
+
+D_geometry_eligible
+
+and
+
+phase7_geometry_excluded
+
+
+The expected initial eligibility based on Phase 5 is approximately:
+
+769 molecules eligible
+
+20 molecules outside the model-feasibility range
+
+
+However, the final graph count may be lower if conformer generation or
+geometry optimization fails for some eligible molecules.
+
+
+==================================================
+2. MOLECULAR STRUCTURE INPUT
+==================================================
+
+Use:
+
+standardized_smiles
+
+from:
+
+D_chem_standardized
+
+
+Do NOT return to raw_smiles for graph generation.
+
+However, preserve:
+
+drug_id
+drug_name
+raw_smiles
+canonical_smiles
+standardized_smiles
+
+for lineage and reproducibility.
+
+
+==================================================
+3. MOLECULAR RECONSTRUCTION
+==================================================
+
+Reconstruct the RDKit molecule from:
+
+standardized_smiles
+
+
+Conceptually:
+
+standardized_smiles
+        ↓
+RDKit MolFromSmiles
+        ↓
+Validated 2-D Molecular Object
+
+
+Phase 5 already validated these structures, but Phase 7 should still verify
+successful reconstruction before attempting 3-D generation.
+
+
+Possible failure reason:
+
+MOLECULE_RECONSTRUCTION_FAILED
+
+
+==================================================
+4. EXPLICIT HYDROGEN ADDITION
+==================================================
+
+Hydrogens should be added before 3-D conformer generation.
+
+Conceptually:
+
+Validated Molecule
+        ↓
+Chem.AddHs()
+        ↓
+Hydrogen-Explicit Molecule
+
+
+This improves chemically reasonable 3-D geometry generation.
+
+
+IMPORTANT:
+
+Keep track of both:
+
+heavy_atom_count
+
+and
+
+total_atom_count_with_hydrogens
+
+
+The heavy-atom model-feasibility criterion should be based on the Phase 5
+heavy-atom count, not the hydrogen-expanded atom count.
+
+
+==================================================
+5. 3-D CONFORMER GENERATION
+==================================================
+
+Generate a reproducible 3-D molecular conformer using RDKit.
+
+Recommended baseline method:
+
+ETKDGv3
+
+
+Use a fixed random seed:
+
+RANDOM_SEED = 42
+
+
+This makes conformer generation reproducible across repeated experiments
+as far as supported by the software environment.
+
+
+Conceptually:
+
+Hydrogen-Explicit Molecule
+        ↓
+ETKDGv3
+        ↓
+Initial 3-D Conformer
+
+
+Possible status:
+
+CONFORMER_GENERATION_SUCCESS
+
+CONFORMER_GENERATION_FAILED
+
+
+Failures must be recorded rather than silently removed.
+
+
+==================================================
+6. CONFORMER GENERATION FALLBACK
+==================================================
+
+A robust implementation may perform a second embedding attempt when the
+primary ETKDG attempt fails.
+
+For example:
+
+Primary:
+ETKDGv3
+
+Fallback:
+ETKDG with alternative initialization / random coordinates
+
+
+The fallback should be explicitly recorded.
+
+Recommended field:
+
+conformer_method
+
+
+Example values:
+
+ETKDGv3_PRIMARY
+ETKDG_FALLBACK
+
+
+Do not repeatedly generate unlimited conformers until one succeeds.
+
+The procedure must remain deterministic and auditable.
+
+
+==================================================
+7. GEOMETRY OPTIMIZATION
+==================================================
+
+After successful conformer generation, optimize molecular geometry.
+
+Preferred hierarchy:
+
+MMFF94
+
+if suitable MMFF parameters are available.
+
+Otherwise:
+
+UFF
+
+
+Conceptually:
+
+Initial Conformer
+        ↓
+MMFF94 if available
+        ↓
+otherwise UFF
+        ↓
+Optimized 3-D Geometry
+
+
+Recommended fields:
+
+optimization_method
+optimization_status
+optimization_converged
+
+
+Possible methods:
+
+MMFF94
+UFF
+NONE
+
+
+Possible failure labels:
+
+MMFF_OPTIMIZATION_FAILED
+UFF_OPTIMIZATION_FAILED
+GEOMETRY_OPTIMIZATION_FAILED
+
+
+A conformer should not disappear silently because an optimizer fails.
+
+
+==================================================
+8. CONFORMER ENERGY
+==================================================
+
+Where supported by the chosen force field, record the final conformer energy.
+
+Recommended field:
+
+conformer_energy
+
+
+This value is a geometry-generation diagnostic.
+
+It should NOT be interpreted as:
+
+binding energy
+protein-ligand affinity
+biological activity
+
+
+==================================================
+9. COORDINATE EXTRACTION
+==================================================
+
+For every successfully generated molecular conformer, extract Cartesian
+coordinates:
+
+R ∈ R^(N × 3)
+
+
+For atom i:
+
+R_i = [x_i, y_i, z_i]
+
+
+The coordinates should correspond exactly to the atom ordering used for
+the graph node matrix X.
+
+
+==================================================
+10. COORDINATE CENTERING
+==================================================
+
+For the model representation, coordinates may be centered around the molecular
+centroid.
+
+Conceptually:
+
+R_centered = R - mean(R)
+
+
+This removes arbitrary global translation from the stored model coordinates.
+
+Preserve the geometry itself; centering does not alter internal molecular
+distances.
+
+
+Recommended:
+
+store/use centered coordinates for neural-network input.
+
+
+==================================================
+11. IMPORTANT SE(3) FEATURE SEPARATION
+==================================================
+
+Atomic feature matrix X and coordinate matrix R must remain conceptually
+separate.
+
+DO NOT place absolute:
+
+x
+y
+z
+
+coordinates inside ordinary scalar atom features X.
+
+
+Instead:
+
+X = chemical / atomic attributes
+
+R = Cartesian coordinates
+
+
+This is important for the later SE(3)-equivariant encoder.
+
+
+The encoder should process geometry through R rather than treating absolute
+coordinates as ordinary scalar descriptors.
+
+
+==================================================
+12. NODE SET V
+==================================================
+
+Each graph node represents an atom.
+
+For the initial geometry-aware graph, an explicit and consistent atom policy
+must be used.
+
+Recommended baseline:
+
+Use the hydrogen-explicit molecule generated for the 3-D conformer so that
+the node set and coordinate matrix refer to the same molecular object.
+
+Therefore:
+
+V = all atoms in the hydrogen-explicit conformer
+
+
+Also preserve:
+
+heavy_atom_count
+total_atom_count
+
+
+This ensures:
+
+number of graph nodes
+=
+number of rows in X
+=
+number of rows in R
+
+
+==================================================
+13. NODE FEATURE MATRIX X
+==================================================
+
+Recommended atomic features include:
+
+Atomic number
+Degree
+Formal charge
+Hybridization
+Aromaticity
+Chirality
+Total hydrogen count
+Ring membership
+
+
+Additional useful features may include:
+
+Atomic mass
+Implicit valence
+Explicit valence
+
+
+Features should be encoded consistently for every graph.
+
+
+Example conceptual atomic vector:
+
+X_i = [
+    atomic_number,
+    degree,
+    formal_charge,
+    hybridization,
+    aromaticity,
+    chirality,
+    hydrogen_count,
+    ring_membership
+]
+
+
+Categorical attributes such as hybridization and chirality should later be
+represented using deterministic categorical / one-hot encodings.
+
+
+==================================================
+14. EDGE SET E
+==================================================
+
+Edges should represent chemical bonds.
+
+Bond types include:
+
+single
+double
+triple
+aromatic
+
+
+For graph neural-network processing, bonds should normally be represented
+bidirectionally.
+
+For a chemical bond:
+
+i -- j
+
+
+store graph edges:
+
+i → j
+j → i
+
+
+Therefore:
+
+edge_index
+
+should have the conventional graph representation:
+
+shape = [2, number_of_directed_edges]
+
+
+==================================================
+15. EDGE ATTRIBUTES
+==================================================
+
+Recommended edge features include:
+
+bond type
+conjugation
+ring membership
+bond stereochemistry
+
+
+For example:
+
+single
+double
+triple
+aromatic
+
+is_conjugated
+is_in_ring
+bond_stereo
+
+
+Optional geometric information such as interatomic distance can be derived
+directly from R.
+
+
+For bonded atoms i and j:
+
+d_ij = ||R_i - R_j||
+
+
+It is generally preferable for the geometry-aware encoder to derive distances
+from coordinates rather than storing absolute spatial orientation as an
+ordinary edge feature.
+
+
+==================================================
+16. GRAPH CONSISTENCY VALIDATION
+==================================================
+
+Every generated graph should satisfy:
+
+number of nodes
+=
+number of atom feature rows
+=
+number of coordinate rows
+
+
+and:
+
+every edge index refers to a valid node
+
+
+and:
+
+coordinates contain only finite numerical values
+
+
+and:
+
+no NaN coordinates
+
+
+and:
+
+no infinite coordinates
+
+
+and:
+
+graph contains at least one atom
+
+
+and:
+
+standardized DrugBank ID is preserved.
+
+
+==================================================
+17. GRAPH IDENTIFIER
+==================================================
+
+Each molecular graph should have a stable graph identifier.
+
+Recommended:
+
+graph_id = drug_id
+
+
+because Phase 5 confirmed that retained DrugBank drug IDs are unique in the
+molecular corpus.
+
+
+Preserve:
+
+graph_id
+drug_id
+drug_name
+standardized_smiles
+
+
+This maintains direct traceability between:
+
+DrugBank Record
+        ↓
+Standardized Molecule
+        ↓
+3-D Conformer
+        ↓
+Graph
+
+
+==================================================
+18. GEOMETRY FAILURE AUDIT
+==================================================
+
+Every molecule that fails graph construction should receive an explicit
+reason.
+
+Recommended failure labels:
+
+MODEL_SIZE_FILTER
+MOLECULE_RECONSTRUCTION_FAILED
+HYDROGEN_ADDITION_FAILED
+CONFORMER_GENERATION_FAILED
+GEOMETRY_OPTIMIZATION_FAILED
+INVALID_COORDINATES
+GRAPH_CONSTRUCTION_FAILED
+
+
+Do not silently drop failed molecules.
+
+
+Recommended output:
+
+phase7_geometry_excluded.csv
+
+
+==================================================
+19. BIOLOGICAL ASSOCIATION LINKAGE
+==================================================
+
+Phase 6 produced:
+
+D_bio_association
+
+
+Phase 7 graph generation itself should remain based on molecular structure.
+
+It should NOT duplicate biological target rows into separate molecular graphs.
+
+
+One molecule should produce:
+
+one baseline molecular graph
+
+
+not:
+
+one graph per drug-target association.
+
+
+Maintain linkage through:
+
+drug_id
+
+
+Therefore:
+
+Molecular Graph
+      ↕ drug_id
+D_bio_association
+
+
+This keeps chemical and biological representations modular.
+
+
+==================================================
+20. MOLECULES WITHOUT TARGET ASSOCIATIONS
+==================================================
+
+Phase 6 identified 12 standardized molecules without target records.
+
+These molecules should NOT automatically be excluded from Phase 7.
+
+Geometry construction depends on molecular structure, not on the existence
+of a DrugBank target association.
+
+Therefore a chemically valid and model-size-eligible molecule may still
+enter the molecular graph corpus even if it currently has no target record.
+
+
+==================================================
+21. SINGLE-CONFORMER BASELINE
+==================================================
+
+For the first implementation, generate:
+
+ONE optimized conformer per molecule.
+
+
+Do not generate large conformer ensembles during the baseline phase.
+
+
+Reasons:
+
+computational efficiency
+reproducibility
+consistent graph representation
+simpler encoder training
+
+
+Multiple conformer experiments can later be introduced as an extension.
+
+
+==================================================
+22. GRAPH STORAGE
+==================================================
+
+Each graph should contain at minimum:
+
+graph_id
+drug_id
+drug_name
+standardized_smiles
+
+x / node_features
+edge_index
+edge_attr
+pos / coordinates
+
+heavy_atom_count
+total_atom_count
+
+conformer_method
+optimization_method
+optimization_status
+conformer_energy
+
+
+Conceptually:
+
+Graph {
+    graph_id
+    drug_id
+    X
+    E
+    edge_attr
+    R
+    metadata
+}
+
+
+==================================================
+23. RECOMMENDED STORAGE FORMAT
+==================================================
+
+Because graphs contain variable-size arrays, CSV is not appropriate for the
+actual graph tensors.
+
+Recommended graph serialization:
+
+PyTorch .pt files
+
+
+For example:
+
+data/graphs/
+    DB00006.pt
+    DB00035.pt
+    ...
+
+
+Each file should contain the graph tensors and associated metadata.
+
+
+Also create a tabular graph index:
+
+phase7_graph_index.csv
+
+
+Possible fields:
+
+graph_id
+drug_id
+drug_name
+standardized_smiles
+heavy_atom_count
+total_atom_count
+num_nodes
+num_bonds
+num_directed_edges
+conformer_method
+optimization_method
+optimization_status
+conformer_energy
+graph_file
+
+
+==================================================
+24. PHASE 7 SUMMARY OUTPUTS
+==================================================
+
+Recommended outputs:
+
+data/graphs/*.pt
+
+phase7_graph_index.csv
+
+phase7_geometry_excluded.csv
+
+phase7_geometry_qc_summary.csv
+
+phase7_geometry_qc_summary.json
+
+
+Optional diagnostic outputs may include:
+
+heavy-atom distribution
+total-atom distribution
+conformer-generation success rate
+optimization-method distribution
+graph-size statistics
+
+
+==================================================
+25. PHASE 7 QUALITY-CONTROL STATISTICS
+==================================================
+
+Calculate:
+
+input standardized molecules
+
+model-size-eligible molecules
+
+model-size-excluded molecules
+
+conformer-generation successes
+
+conformer-generation failures
+
+MMFF optimized molecules
+
+UFF optimized molecules
+
+optimization failures
+
+final valid molecular graphs
+
+minimum graph nodes
+
+median graph nodes
+
+maximum graph nodes
+
+minimum graph edges
+
+median graph edges
+
+maximum graph edges
+
+graphs with human biological associations
+
+graphs without biological associations
+
+
+==================================================
+26. PHASE 7 SHOULD PERFORM
+==================================================
+
+Model-feasibility filtering
+RDKit molecular reconstruction
+Explicit hydrogen addition
+3-D conformer generation
+Geometry optimization
+Coordinate extraction
+Coordinate centering
+Atomic feature construction
+Bond feature construction
+Graph construction
+Graph validation
+Graph serialization
+Geometry QC reporting
+
+
+==================================================
+27. PHASE 7 SHOULD NOT PERFORM
+==================================================
+
+SE(3)-equivariant encoder training
+latent representation learning
+variational inference
+decoder training
+candidate generation
+QED optimization
+SA optimization
+biological relevance prediction
+UCB acquisition
+Fisher information estimation
+EWC regularization
+closed-loop adaptation
+
+
+Phase 7 creates the geometry-aware graph DATASET.
+
+It does not train the geometry-aware encoder.
+
+
+==================================================
+28. PHASE 7 COMPLETION CRITERIA
+==================================================
+
+Phase 7 is complete when:
+
+1. D_chem_standardized has been loaded.
+
+2. Model-feasibility criteria have been applied explicitly.
+
+3. Molecules outside 4–80 heavy atoms are documented as MODEL_SIZE_FILTER,
+   not chemically invalid.
+
+4. All eligible structures have been reconstructed with RDKit.
+
+5. Explicit hydrogens have been added.
+
+6. 3-D conformer generation has been attempted reproducibly.
+
+7. Conformer-generation failures have been recorded.
+
+8. Geometry optimization has been performed using MMFF94 or UFF where
+   appropriate.
+
+9. Optimization method and status have been recorded.
+
+10. Cartesian coordinate matrix R has been extracted.
+
+11. Atomic feature matrix X has been created.
+
+12. Chemical bond graph E has been constructed.
+
+13. Edge attributes have been created.
+
+14. X and R use exactly the same atom ordering.
+
+15. All graph consistency checks pass.
+
+16. Each successful molecule has one graph identifier.
+
+17. Graph files have been serialized.
+
+18. A graph-index table has been generated.
+
+19. All failed / excluded molecules have explicit reasons.
+
+20. Original D_chem_standardized remains unchanged.
+
+21. Biological associations remain separate and linkable by drug_id.
+
+22. No neural-network training occurs during this phase.
+
+23. The final graph corpus is ready for the geometry-aware molecular encoder.
+
+
+==================================================
+FINAL PHASE 7 WORKFLOW
+==================================================
+
+D_chem_standardized
+        ↓
+4–80 Heavy-Atom Model-Feasibility Screen
+        ↓
+D_geometry_eligible
+        ↓
+Molecular Reconstruction
+        ↓
+Explicit Hydrogen Addition
+        ↓
+ETKDGv3 3-D Conformer Generation
+        ↓
+MMFF94 / UFF Geometry Optimization
+        ↓
+Coordinate Extraction
+        ↓
+Coordinate Centering
+        ↓
+Atomic Features X
+        +
+Bond Graph E
+        +
+Edge Features
+        +
+Coordinates R
+        ↓
+Graph Consistency Validation
+        ↓
+G = (V, E, X, R)
+        ↓
+PyTorch Graph Serialization
+        ↓
+Geometry-Aware Molecular Graph Corpus
+
+
+NEXT PHASE
+
+Phase 8 — Baseline Chemical Corpus Construction / Geometry-Aware Encoder Preparation
+
+
+
+
+---
+PHASE 8 — BASELINE CHEMICAL CORPUS CONSTRUCTION
+
+OBJECTIVE
+
+Phase 8 organizes the final Phase 7 molecular graph corpus into fixed,
+reproducible subsets for baseline representation learning, validation,
+testing, and later continual-learning knowledge preservation.
+
+The Phase 7 input is:
+
+767 valid geometry-aware molecular graphs
+
+Each graph represents:
+
+G = (V, E, X, R)
+
+The Phase 8 corpus becomes the baseline chemical knowledge source used by
+the later geometry-aware encoder and continual-learning mechanism.
+
+
+==================================================
+IMPORTANT NAMING / LINEAGE RULE
+==================================================
+
+Do not overwrite the earlier datasets:
+
+D_chem_raw
+D_chem
+D_chem_standardized
+
+
+Instead create a new graph-level baseline corpus, for example:
+
+D_baseline_chem
+
+or
+
+D_baseline_graph
+
+
+Recommended lineage:
+
+DrugBank XML
+    ↓
+D_chem_raw
+    ↓
+D_chem
+    ↓
+D_chem_standardized
+    ↓
+Phase 7 geometry-aware graphs
+    ↓
+D_baseline_graph
+
+
+==================================================
+PRIMARY INPUT
+==================================================
+
+phase7_graph_index.csv
+
+and the corresponding:
+
+data/graphs/*.pt
+
+
+Expected graph corpus:
+
+767 valid molecular graphs
+
+
+==================================================
+BASELINE CORPUS STRUCTURE
+==================================================
+
+D_baseline_graph
+        ↓
+Fixed reproducible split
+        ↓
+├── D_train
+├── D_validation
+├── D_test
+└── D_fisher_reference
+
+
+==================================================
+1. SPLIT UNIT
+==================================================
+
+Split at the molecular graph level.
+
+The split identifier should be:
+
+drug_id
+
+or equivalently:
+
+graph_id
+
+
+Do NOT split:
+
+target association rows
+
+protein rows
+
+individual atoms
+
+individual bonds
+
+
+One molecule must belong to exactly one of:
+
+training
+validation
+test
+
+
+==================================================
+2. REPRODUCIBLE DATA SPLITTING
+==================================================
+
+Use a fixed random seed.
+
+Recommended:
+
+RANDOM_SEED = 42
+
+
+A reasonable initial split is:
+
+80% training
+10% validation
+10% test
+
+
+For approximately 767 graphs this gives approximately:
+
+Training   ≈ 613
+Validation ≈ 77
+Test       ≈ 77
+
+
+Exact numbers may vary slightly depending on integer rounding.
+
+
+==================================================
+3. NO DATA LEAKAGE
+==================================================
+
+The following conditions must hold:
+
+Train ∩ Validation = empty
+
+Train ∩ Test = empty
+
+Validation ∩ Test = empty
+
+
+and:
+
+Train ∪ Validation ∪ Test
+=
+all Phase 7 valid graph IDs
+
+
+Every graph must occur in exactly one primary split.
+
+
+==================================================
+4. FISHER REFERENCE CORPUS
+==================================================
+
+The Fisher reference corpus is required later for:
+
+Fisher information estimation
+
+and:
+
+Elastic Weight Consolidation (EWC)
+
+
+IMPORTANT:
+
+D_fisher_reference should be sampled only from:
+
+D_train
+
+
+It should NOT contain:
+
+validation molecules
+test molecules
+
+
+This avoids information leakage.
+
+
+==================================================
+5. FISHER REFERENCE SIZE
+==================================================
+
+The Fisher corpus should be a fixed subset of the training corpus.
+
+For the current experimental corpus, a reasonable initial strategy is:
+
+use up to 128 training graphs
+
+or, if the training corpus is smaller:
+
+use all available training graphs.
+
+
+Recommended:
+
+FISHER_REFERENCE_SIZE = min(128, len(D_train))
+
+
+The Fisher subset should be selected reproducibly using:
+
+RANDOM_SEED = 42
+
+
+==================================================
+6. FISHER REFERENCE ROLE
+==================================================
+
+The Fisher reference corpus is NOT:
+
+a validation set
+a test set
+a fourth independent scientific split
+
+
+It is:
+
+a fixed reference subset of the training knowledge
+
+
+Its role is to estimate which learned model parameters are important for
+retaining baseline chemical knowledge during later continual-learning cycles.
+
+
+==================================================
+7. BIOLOGICAL ASSOCIATIONS
+==================================================
+
+Phase 8 constructs the baseline CHEMICAL graph corpus.
+
+Therefore biological associations from Phase 6 should remain separate.
+
+
+Do not duplicate one molecular graph for each target association.
+
+
+The graph corpus should remain:
+
+one graph per drug_id
+
+
+Biological information can later be linked through:
+
+drug_id
+
+
+==================================================
+8. MOLECULES WITHOUT BIOLOGICAL ASSOCIATIONS
+==================================================
+
+The 12 Phase 7 graphs without DrugBank target associations should NOT
+automatically be removed from the baseline chemical corpus.
+
+They still represent valid chemical structures and valid molecular graphs.
+
+Therefore they may appear in:
+
+training
+validation
+or test
+
+like any other molecular graph.
+
+
+==================================================
+9. SPLIT STRATEGY FOR THE BASELINE EXPERIMENT
+==================================================
+
+For the first implementation, use a deterministic random molecular split.
+
+Recommended:
+
+80% train
+10% validation
+10% test
+
+
+This provides a simple reproducible baseline.
+
+
+IMPORTANT:
+
+This should be described as a:
+
+random molecule-level split
+
+
+It should NOT be described as:
+
+scaffold split
+temporal split
+target-disjoint split
+
+
+unless those strategies are explicitly implemented.
+
+
+==================================================
+10. OPTIONAL FUTURE SPLIT EXPERIMENTS
+==================================================
+
+Later robustness experiments may compare:
+
+random molecular split
+Bemis–Murcko scaffold split
+target-disjoint split
+chemical similarity-aware split
+
+
+However, these should be treated as later experimental extensions.
+
+They are not required for the initial baseline implementation.
+
+
+==================================================
+11. GRAPH FILE INTEGRITY
+==================================================
+
+Before splitting, verify that:
+
+every graph index row has a valid .pt graph file
+
+every graph_id is unique
+
+every drug_id is unique
+
+every graph file can be loaded
+
+each graph contains:
+
+x
+edge_index
+edge_attr
+pos
+
+
+Also verify:
+
+x.shape[0] == pos.shape[0]
+
+
+and:
+
+all coordinates are finite
+
+
+==================================================
+12. SPLIT MANIFEST
+==================================================
+
+Create a master split manifest.
+
+Recommended fields:
+
+graph_id
+drug_id
+drug_name
+graph_file
+split
+is_fisher_reference
+num_nodes
+num_bonds
+heavy_atom_count
+
+
+Example:
+
+DB00114   TRAIN       True
+DB00117   TRAIN       False
+DB00321   VALIDATION  False
+DB00455   TEST        False
+
+
+==================================================
+13. RECOMMENDED OUTPUTS
+==================================================
+
+Primary split manifest:
+
+phase8_baseline_split_manifest.csv
+
+
+Separate optional files:
+
+phase8_train_graphs.csv
+phase8_validation_graphs.csv
+phase8_test_graphs.csv
+phase8_fisher_reference.csv
+
+
+Summary:
+
+phase8_baseline_corpus_summary.csv
+phase8_baseline_corpus_summary.json
+
+
+==================================================
+14. PHASE 8 QUALITY-CONTROL STATISTICS
+==================================================
+
+Calculate:
+
+total graph corpus size
+
+training graph count
+
+validation graph count
+
+test graph count
+
+Fisher reference count
+
+train percentage
+
+validation percentage
+
+test percentage
+
+train-validation overlap
+
+train-test overlap
+
+validation-test overlap
+
+graphs missing files
+
+duplicate graph IDs
+
+duplicate drug IDs
+
+training graphs with biological associations
+
+validation graphs with biological associations
+
+test graphs with biological associations
+
+training graphs with human associations
+
+Fisher reference graphs with biological associations
+
+
+==================================================
+15. PHASE 8 SHOULD PERFORM
+==================================================
+
+Graph corpus loading
+Graph-file verification
+Fixed molecular splitting
+Split reproducibility
+Leakage validation
+Training-set construction
+Validation-set construction
+Test-set construction
+Fisher-reference construction
+Split manifest creation
+Corpus QC reporting
+
+
+==================================================
+16. PHASE 8 SHOULD NOT PERFORM
+==================================================
+
+Encoder training
+Decoder training
+Latent-space learning
+Variational inference
+Candidate generation
+QED optimization
+SA optimization
+biological relevance prediction
+UCB acquisition
+Fisher information calculation
+EWC regularization
+closed-loop adaptation
+
+
+IMPORTANT:
+
+Phase 8 constructs the datasets needed for later Fisher estimation.
+
+It does NOT calculate Fisher information yet.
+
+
+==================================================
+17. COMPLETION CRITERIA
+==================================================
+
+Phase 8 is complete when:
+
+1. All 767 Phase 7 graph records are loaded.
+
+2. Every graph file exists and is readable.
+
+3. Every graph ID is unique.
+
+4. Every drug ID is unique.
+
+5. A reproducible molecule-level train/validation/test split is created.
+
+6. Each graph belongs to exactly one primary split.
+
+7. No train/validation/test overlap exists.
+
+8. The union of train/validation/test equals the complete baseline graph corpus.
+
+9. Fisher reference graphs are sampled only from the training corpus.
+
+10. Fisher reference selection is reproducible.
+
+11. Biological information remains linked by drug_id but is not duplicated into graphs.
+
+12. Molecules without biological associations are not automatically removed.
+
+13. A split manifest is saved.
+
+14. Training, validation, test and Fisher reference tables are saved.
+
+15. Corpus QC summaries are generated.
+
+16. No model training occurs.
+
+17. The baseline chemical corpus is ready for encoder training.
+
+
+==================================================
+FINAL PHASE 8 WORKFLOW
+==================================================
+
+Phase 7 Valid Molecular Graphs
+        ↓
+Graph Integrity Validation
+        ↓
+D_baseline_graph
+        ↓
+Fixed Random Molecule-Level Split
+        ↓
+├── D_train
+├── D_validation
+└── D_test
+        ↓
+D_train
+        ↓
+Fixed Fisher Reference Sampling
+        ↓
+D_fisher_reference
+        ↓
+Split Manifest + QC
+        ↓
+Baseline Chemical Knowledge Corpus
+
+
+NEXT PHASE
+
+Phase 9 — Geometry-Aware Molecular Encoder
+
+
+---
+==================================
+PHASE 9 — GEOMETRY-AWARE EQUIVARIANT MOLECULAR ENCODER
+
+
+OBJECTIVE
+
+Phase 9 constructs the geometry-aware molecular encoder that transforms each
+Phase 7 molecular graph into a continuous latent molecular representation.
+
+The input molecular graph is:
+
+G = (V, E, X, R)
+
+where:
+
+V = molecular atoms
+
+E = bidirectional chemical-bond connectivity
+
+X = invariant atomic feature matrix
+
+R = centered three-dimensional Cartesian coordinates
+
+
+The encoder transforms:
+
+G
+↓
+Geometry-aware atom representations
+↓
+Equivariant message passing
+↓
+Molecular-level representation
+↓
+μ and log σ²
+↓
+Latent representation z
+
+
+The resulting latent variable belongs to the continuous molecular latent space:
+
+z ∈ Z
+
+
+==================================================
+PRIMARY INPUT
+==================================================
+
+Phase 8 provides the fixed baseline graph corpus:
+
+Total graph corpus:
+
+767 molecular graphs
+
+
+Primary subsets:
+
+Training corpus   = 613 graphs
+
+Validation corpus = 76 graphs
+
+Test corpus       = 78 graphs
+
+Fisher reference  = 128 graphs
+
+
+The Fisher reference corpus remains reserved for later Fisher-information
+estimation and EWC.
+
+It should NOT be treated as a separate training or validation dataset.
+
+
+==================================================
+GRAPH INPUT
+==================================================
+
+Each Phase 7 graph contains:
+
+graph_id
+
+drug_id
+
+drug_name
+
+standardized_smiles
+
+x
+
+edge_index
+
+edge_attr
+
+pos
+
+
+where:
+
+x = node feature matrix X
+
+edge_index = graph connectivity E
+
+edge_attr = chemical bond attributes
+
+pos = centered Cartesian coordinates R
+
+
+From Phase 7:
+
+node feature dimension = 21
+
+edge feature dimension = 14
+
+
+These values should be read from the Phase 7 metadata/schema rather than
+silently hard-coded wherever possible.
+
+
+==================================================
+PHASE 9 DATA FLOW
+==================================================
+
+Phase 8 Training Graphs
+        ↓
+Load Phase 7 .pt Graph Files
+        ↓
+Node / Edge Feature Preparation
+        ↓
+Initial Atom Embedding
+        ↓
+Geometry-Aware Equivariant Message Passing
+        ↓
+Layer 1
+        ↓
+Layer 2
+        ↓
+Updated Atomic Hidden Representations
+        ↓
+Permutation-Invariant Molecular Pooling
+        ↓
+Molecular Embedding h_G
+        ↓
+Latent Parameter Heads
+        ├── μ
+        └── log σ²
+        ↓
+Reparameterization
+        ↓
+z = μ + σ ⊙ ε
+        ↓
+Continuous Molecular Latent Representation
+
+
+==================================================
+1. IMPORTANT ARCHITECTURAL DISTINCTION
+==================================================
+
+The molecular encoder should distinguish between:
+
+INVARIANT FEATURES
+
+and:
+
+GEOMETRIC COORDINATES
+
+
+Atomic attributes X are scalar/invariant chemical features.
+
+Examples:
+
+atomic number
+degree
+formal charge
+hybridization
+aromaticity
+chirality
+hydrogen information
+ring membership
+
+
+Coordinates R contain geometric information:
+
+x-coordinate
+y-coordinate
+z-coordinate
+
+
+Absolute Cartesian coordinates must NOT simply be concatenated into ordinary
+scalar node features.
+
+
+The coordinate matrix must enter the model through the geometry-aware
+message-passing mechanism.
+
+
+==================================================
+2. INITIAL ATOM EMBEDDING
+==================================================
+
+The original Phase 7 node feature vector has dimension:
+
+21
+
+
+Map each node feature vector into the encoder hidden space:
+
+X_i
+↓
+Linear / MLP projection
+↓
+h_i^(0)
+
+
+Recommended initial hidden dimension:
+
+HIDDEN_DIM = 64
+
+
+Therefore:
+
+h_i^(0) ∈ R^64
+
+
+The initial feature projection may conceptually be:
+
+Linear(21 → 64)
+↓
+SiLU
+↓
+Layer Normalization
+
+
+The exact architecture should remain lightweight because the current
+baseline corpus contains only 613 training molecules.
+
+
+==================================================
+3. EDGE REPRESENTATION
+==================================================
+
+Phase 7 provides:
+
+edge_attr dimension = 14
+
+
+These attributes describe chemical bonds and include information such as:
+
+bond type
+conjugation
+ring membership
+stereochemistry
+
+
+Edge attributes should contribute to the message function.
+
+
+For an edge:
+
+i → j
+
+
+the message can depend on:
+
+h_i
+h_j
+edge_attr_ij
+distance_ij
+
+
+where:
+
+distance_ij = ||r_i - r_j||
+
+
+==================================================
+4. GEOMETRIC RELATIONSHIPS
+==================================================
+
+For connected atoms i and j:
+
+r_ij = r_i - r_j
+
+
+and:
+
+d_ij² = ||r_i - r_j||²
+
+
+Relative distances are invariant to:
+
+global translation
+
+global rotation
+
+
+Relative coordinate vectors transform consistently under spatial
+transformations and can therefore support equivariant coordinate updates.
+
+
+The architecture should NOT rely on absolute molecular orientation.
+
+
+==================================================
+5. EGNN-STYLE MESSAGE FUNCTION
+==================================================
+
+A lightweight EGNN-style interaction can be expressed conceptually as:
+
+m_ij = φ_e(
+    h_i,
+    h_j,
+    d_ij²,
+    e_ij
+)
+
+
+where:
+
+m_ij = message from atom j to atom i
+
+h_i, h_j = node representations
+
+d_ij² = squared interatomic distance
+
+e_ij = bond/edge attributes
+
+φ_e = learnable edge-message network
+
+
+This allows the encoder to combine:
+
+chemical topology
+
+atomic properties
+
+bond information
+
+three-dimensional geometry
+
+
+==================================================
+6. COORDINATE-AWARE / EQUIVARIANT UPDATE
+==================================================
+
+To retain the intended equivariant component, coordinate information should
+participate through relative coordinates.
+
+An EGNN-style coordinate update can conceptually be written as:
+
+r_i^(l+1)
+=
+r_i^(l)
++
+Σ_j
+(r_i^(l) - r_j^(l))
+φ_x(m_ij)
+
+
+where:
+
+φ_x
+
+produces a learned scalar coefficient.
+
+
+Because the coordinate update is based on relative coordinate vectors and
+learned scalar functions, the geometric state transforms consistently under
+global translations and rotations.
+
+
+IMPORTANT:
+
+If coordinates are used only to calculate fixed distances and coordinates are
+never updated or otherwise handled equivariantly, the architecture should be
+described conservatively as:
+
+geometry-aware / distance-aware
+
+rather than making a stronger equivariance claim.
+
+
+Therefore the implementation should explicitly preserve the equivariant
+coordinate-update mechanism if the patent architecture requires it.
+
+
+==================================================
+7. NODE FEATURE UPDATE
+==================================================
+
+Aggregate messages arriving at atom i:
+
+m_i = Σ_j m_ij
+
+
+Then update the node representation:
+
+h_i^(l+1)
+=
+φ_h(
+    h_i^(l),
+    m_i
+)
+
+
+Possible implementation:
+
+message aggregation
+↓
+MLP
+↓
+residual connection
+↓
+normalization
+
+
+Residual updates are recommended for training stability.
+
+
+==================================================
+8. NUMBER OF MESSAGE-PASSING LAYERS
+==================================================
+
+For the baseline implementation use:
+
+2 EGNN-style message-passing layers
+
+
+Conceptually:
+
+Initial Atom Embeddings
+        ↓
+EGNN Layer 1
+        ↓
+EGNN Layer 2
+        ↓
+Final Atomic Representations
+
+
+This preserves the lightweight architecture from the original patent
+implementation while incorporating explicit three-dimensional geometry.
+
+
+==================================================
+9. GRAPH / MOLECULAR POOLING
+==================================================
+
+Molecules contain different numbers of atoms.
+
+Therefore the final node representations must be converted into one
+fixed-dimensional molecular representation.
+
+
+Recommended baseline:
+
+mean pooling
+
+
+For molecule G:
+
+h_G
+=
+(1 / |V|)
+Σ_i h_i
+
+
+Mean pooling is:
+
+permutation invariant
+
+independent of molecular atom ordering
+
+compatible with variable graph sizes
+
+
+Optional later experiments may compare:
+
+sum pooling
+attention pooling
+set-based pooling
+
+
+But mean pooling is sufficient for the baseline implementation.
+
+
+==================================================
+10. IMPORTANT INVARIANCE PROPERTY
+==================================================
+
+The internal geometric processing may be equivariant.
+
+However, the final molecular representation should be invariant to arbitrary
+global molecular orientation and translation.
+
+
+Therefore:
+
+h_G
+
+μ
+
+log σ²
+
+z
+
+
+should not change materially simply because the entire molecule is:
+
+rotated
+
+or
+
+translated
+
+
+This is an important property that should be tested computationally.
+
+
+==================================================
+11. LATENT PARAMETERIZATION
+==================================================
+
+From pooled molecular embedding h_G, construct two output heads:
+
+μ = f_μ(h_G)
+
+log σ² = f_logvar(h_G)
+
+
+Recommended latent dimension from the project configuration:
+
+LATENT_DIM = 32
+
+
+Therefore:
+
+μ ∈ R^32
+
+log σ² ∈ R^32
+
+
+==================================================
+12. WHY μ AND log σ² ARE USED
+==================================================
+
+The encoder is designed as a variational molecular encoder.
+
+Instead of mapping each molecule directly to one deterministic point, the
+encoder represents the molecule as a latent probability distribution:
+
+q(z|G)
+=
+N(
+    μ,
+    diag(σ²)
+)
+
+
+This provides a continuous latent molecular representation that can later be
+used by the molecular decoder and candidate-generation mechanism.
+
+
+==================================================
+13. REPARAMETERIZATION TRICK
+==================================================
+
+During stochastic latent sampling:
+
+σ = exp(0.5 × log σ²)
+
+
+Sample:
+
+ε ~ N(0, I)
+
+
+Then:
+
+z = μ + σ ⊙ ε
+
+
+This is the reparameterization trick.
+
+
+It allows gradients to propagate through the latent sampling operation during
+later end-to-end training.
+
+
+==================================================
+14. TRAINING AND EVALUATION LATENT POLICY
+==================================================
+
+A clear policy should be used.
+
+
+During stochastic training:
+
+z = μ + σ ⊙ ε
+
+
+For deterministic validation / testing / representation extraction:
+
+z = μ
+
+
+Using μ for deterministic evaluation avoids random differences between
+repeated evaluations of the same molecule.
+
+
+==================================================
+15. LATENT DIMENSION
+==================================================
+
+Use:
+
+LATENT_DIM = 32
+
+
+This matches the project configuration established earlier.
+
+
+Therefore each molecule obtains a compact representation:
+
+z ∈ R^32
+
+
+==================================================
+16. FEATURE NORMALIZATION
+==================================================
+
+Some Phase 7 node attributes are continuous numerical features.
+
+Examples may include:
+
+atomic mass
+degree
+formal charge
+valence-related values
+
+
+If numerical standardization is applied, the normalization statistics must be
+computed using:
+
+TRAINING DATA ONLY
+
+
+Do NOT calculate normalization means or standard deviations using:
+
+validation data
+
+test data
+
+
+This prevents preprocessing leakage.
+
+
+The fitted normalization parameters should then be frozen and reused for:
+
+training
+validation
+test
+Fisher-reference graphs
+
+
+Categorical one-hot features should not be standardized as if they were
+continuous measurements.
+
+
+==================================================
+17. MINI-BATCH GRAPH PROCESSING
+==================================================
+
+Molecules contain different numbers of atoms.
+
+The encoder therefore requires graph batching.
+
+
+A batch should retain:
+
+concatenated node features
+
+concatenated coordinates
+
+adjusted edge indices
+
+edge attributes
+
+graph-membership / batch vector
+
+
+The batch vector indicates which molecule each atom belongs to.
+
+
+Conceptually:
+
+batch = [
+    graph 0 nodes,
+    graph 1 nodes,
+    graph 2 nodes,
+    ...
+]
+
+
+Global pooling should use this membership vector to generate:
+
+one molecular embedding per graph.
+
+
+==================================================
+18. TRAINING DATA POLICY
+==================================================
+
+Only:
+
+D_train
+
+should be used to fit model parameters.
+
+
+D_validation
+
+should be used for:
+
+model-selection diagnostics
+early-stopping diagnostics
+hyperparameter evaluation
+
+
+D_test
+
+must remain untouched during model development and should be used only for
+final held-out evaluation.
+
+
+D_fisher_reference
+
+must remain reserved for later Fisher-information estimation.
+
+
+==================================================
+19. IMPORTANT PHASE BOUNDARY
+==================================================
+
+Phase 9 should define and validate the encoder architecture.
+
+
+However, μ, log σ² and z do NOT automatically constitute a scientifically
+meaningful learned latent molecular manifold merely because the forward pass
+can compute them.
+
+
+A learning objective is required.
+
+
+If the molecular decoder and reconstruction objective are introduced in the
+next phase, the baseline variational encoder should be trained jointly with
+that objective rather than claiming that an untrained Phase 9 encoder has
+already learned chemical representations.
+
+
+Therefore Phase 9 should clearly distinguish:
+
+MODEL CONSTRUCTION
+
+from:
+
+MODEL LEARNING
+
+
+==================================================
+20. RECOMMENDED PHASE-9 BASELINE SCOPE
+==================================================
+
+Phase 9 should perform:
+
+graph dataset loading
+
+mini-batch construction
+
+training-only feature normalization preparation
+
+initial node embedding construction
+
+edge-aware geometry-aware message passing
+
+two EGNN-style layers
+
+equivariant coordinate handling
+
+global molecular pooling
+
+μ projection
+
+log σ² projection
+
+reparameterization function
+
+latent dimensionality validation
+
+forward-pass validation
+
+rotation/translation consistency testing
+
+gradient-flow sanity testing
+
+model parameter-count reporting
+
+
+Phase 9 should establish that the encoder is computationally correct.
+
+
+==================================================
+21. PHASE 9 SHOULD NOT YET PERFORM
+==================================================
+
+Full encoder-decoder optimization
+
+molecular reconstruction training
+
+SMILES decoding
+
+SELFIES decoding
+
+candidate molecule generation
+
+QED optimization
+
+SA optimization
+
+biological relevance prediction
+
+UCB acquisition
+
+Fisher-information estimation
+
+EWC regularization
+
+closed-loop molecular adaptation
+
+
+These belong to later phases.
+
+
+==================================================
+22. FORWARD OUTPUT
+==================================================
+
+For every molecular graph batch, the encoder should return at minimum:
+
+mu
+
+logvar
+
+z
+
+
+Recommended optional outputs for diagnostics:
+
+graph_embedding
+
+final_node_embeddings
+
+updated_coordinates
+
+
+Conceptually:
+
+encoder(G)
+→ {
+    μ,
+    log σ²,
+    z
+}
+
+
+==================================================
+23. LATENT OUTPUT
+==================================
+
+
+
+---
+=====================
+PHASE 10 — BASELINE VARIATIONAL LATENT REPRESENTATION LEARNING
+
+
+OBJECTIVE
+
+Phase 10 trains the previously initialized geometry-aware variational molecular
+encoder so that DrugBank molecular graphs are mapped into a structured,
+continuous latent molecular representation space.
+
+Phase 9 constructed and computationally validated the encoder architecture.
+
+Phase 10 performs the first actual representation-learning stage.
+
+
+The encoder maps:
+
+G = (V, E, X, R)
+
+to:
+
+μ(G)
+
+and:
+
+log σ²(G)
+
+
+which define the approximate latent distribution:
+
+q(z|G)
+
+=
+N(
+    μ(G),
+    diag(σ²(G))
+)
+
+
+A latent representation is sampled using:
+
+z
+=
+μ
++
+σ ⊙ ε
+
+
+where:
+
+σ
+=
+exp(
+    0.5 × log σ²
+)
+
+
+and:
+
+ε ~ N(0, I)
+
+
+The latent vector has dimensionality:
+
+z ∈ R^32
+
+
+==================================================
+IMPORTANT CONCEPTUAL DISTINCTION
+==================================================
+
+The complete scientific progression is:
+
+DrugBank XML
+        ↓
+Chemical Knowledge Source
+        ↓
+Standardized Molecular Representation
+        ↓
+Geometry-Aware Molecular Graph
+        ↓
+G = (V,E,X,R)
+        ↓
+Geometry-Aware Equivariant Encoder
+        ↓
+μ and log σ²
+        ↓
+Variational Learning
+        ↓
+z ∈ R^32
+        ↓
+Learned Baseline Molecular Representation
+
+
+Therefore:
+
+XML
+=
+chemical knowledge source
+
+
+Graph representation
+=
+computational molecular representation
+
+
+Latent space
+=
+learned molecular representation
+
+
+These three concepts should remain clearly separated throughout the
+implementation and research documentation.
+
+
+==================================================
+PRIMARY INPUT
+==================================================
+
+Phase 8 provides the fixed molecular subsets:
+
+Training corpus:
+
+613 graphs
+
+
+Validation corpus:
+
+76 graphs
+
+
+Test corpus:
+
+78 graphs
+
+
+Fisher reference corpus:
+
+128 training-derived graphs
+
+
+Phase 9 provides:
+
+geometry-aware equivariant variational encoder
+
+NODE_FEATURE_DIM = 21
+
+EDGE_FEATURE_DIM = 14
+
+HIDDEN_DIM = 64
+
+LATENT_DIM = 32
+
+NUM_EGNN_LAYERS = 2
+
+
+and:
+
+training-only feature normalization parameters.
+
+
+==================================================
+IMPORTANT DATA POLICY
+==================================================
+
+Only:
+
+D_train
+
+may be used to update model parameters.
+
+
+D_validation
+
+may be used for:
+
+validation loss
+
+early stopping
+
+model selection
+
+training diagnostics
+
+
+D_test
+
+must NOT influence:
+
+gradient updates
+
+early stopping
+
+hyperparameter selection
+
+checkpoint selection
+
+
+The test corpus should remain untouched until the final baseline model has been
+selected.
+
+
+D_fisher_reference
+
+must also remain untouched during ordinary baseline representation learning.
+
+
+It is reserved for later:
+
+Fisher-information estimation
+
+and:
+
+Elastic Weight Consolidation.
+
+
+==================================================
+WHY PHASE 10 IS NECESSARY
+==================================================
+
+Phase 9 produced an initialized encoder capable of computing:
+
+μ
+
+log σ²
+
+z
+
+
+However, the model parameters were random/untrained.
+
+
+Therefore the Phase 9 latent outputs do NOT yet represent a learned molecular
+manifold.
+
+
+Phase 10 introduces a learning objective that updates the encoder parameters so
+that the latent representation contains information about molecular structure.
+
+
+==================================================
+1. VARIATIONAL LATENT DISTRIBUTION
+==================================================
+
+For each molecular graph G, the encoder produces:
+
+μ(G)
+
+and:
+
+log σ²(G)
+
+
+These define:
+
+qφ(z|G)
+
+=
+N(
+    μ(G),
+    diag(σ²(G))
+)
+
+
+where:
+
+φ
+
+denotes the encoder parameters.
+
+
+During training:
+
+z
+=
+μ
++
+σ ⊙ ε
+
+
+where:
+
+ε ~ N(0,I)
+
+
+During deterministic evaluation:
+
+z = μ
+
+
+This ensures reproducible molecular embeddings for:
+
+validation
+
+testing
+
+visualization
+
+similarity analysis
+
+later Fisher estimation.
+
+
+==================================================
+2. A LEARNING SIGNAL IS REQUIRED
+==================================================
+
+A variational encoder cannot learn useful molecular representations from the
+KL-divergence term alone.
+
+
+The model requires a reconstruction or predictive objective that forces z to
+retain information about the input molecule.
+
+
+Therefore Phase 10 should introduce a baseline molecular reconstruction
+mechanism.
+
+
+Conceptually:
+
+Molecular Graph G
+        ↓
+Encoder
+        ↓
+μ, log σ²
+        ↓
+z
+        ↓
+Decoder / Reconstruction Heads
+        ↓
+Predicted Molecular Information
+        ↓
+Reconstruction Loss
+
+
+==================================================
+3. BASELINE DECODER STRATEGY
+==================================================
+
+For the first baseline implementation, the decoder does NOT need to generate a
+complete chemically valid molecule yet.
+
+
+Instead, lightweight reconstruction heads can be used to reconstruct meaningful
+graph-level molecular descriptors or pooled structural representations.
+
+
+This keeps Phase 10 focused on:
+
+learning the baseline latent representation
+
+
+rather than immediately solving the much harder problem of full molecular
+generation.
+
+
+Possible reconstruction targets include selected molecular-level properties
+derived directly from the input graph.
+
+
+Examples:
+
+number of atoms
+
+number of heavy atoms
+
+number of bonds
+
+mean node-feature representation
+
+aggregated bond-feature representation
+
+selected normalized structural descriptors
+
+
+The exact reconstruction targets must be derived only from the existing graph
+representation and should not introduce information from the validation or test
+sets.
+
+
+==================================================
+4. WHY NOT FULL SMILES GENERATION YET
+==================================================
+
+Full molecular generation requires additional design decisions involving:
+
+sequence decoder architecture
+
+SMILES or SELFIES vocabulary
+
+tokenization
+
+sequence padding
+
+teacher forcing
+
+validity constraints
+
+chemical reconstruction evaluation
+
+
+Introducing all of these simultaneously with the first latent-learning stage
+would make it difficult to determine whether problems originate from:
+
+the encoder
+
+the latent representation
+
+or the sequence decoder.
+
+
+Therefore the recommended progression is:
+
+Phase 10
+=
+baseline latent representation learning
+
+
+Later phase
+=
+full molecular decoder / candidate generation
+
+
+==================================================
+5. RECONSTRUCTION TARGET VECTOR
+==================================================
+
+For each molecular graph G, construct a deterministic graph-level target vector:
+
+y_G
+
+
+The target should summarize structural information already contained in the
+molecular graph.
+
+
+One recommended baseline is:
+
+y_G
+=
+[
+    mean node features,
+    mean edge features,
+    normalized graph-size descriptors
+]
+
+
+For example:
+
+mean(X)
+
+mean(edge_attr)
+
+normalized number of nodes
+
+normalized number of bonds
+
+normalized number of heavy atoms
+
+
+Because Phase 7 provides:
+
+21 node features
+
+14 edge features
+
+
+the reconstruction target could contain approximately:
+
+21 node-summary dimensions
+
++
+
+14 edge-summary dimensions
+
++
+
+3 graph-size dimensions
+
+
+giving:
+
+38 reconstruction dimensions
+
+
+The exact dimension should be explicitly documented by the implementation.
+
+
+==================================================
+6. TRAINING-ONLY TARGET NORMALIZATION
+==================================================
+
+Any continuous graph-level reconstruction target must be normalized using
+statistics derived from:
+
+TRAINING DATA ONLY
+
+
+The resulting mean and standard deviation values are then frozen and reused for:
+
+training
+
+validation
+
+test
+
+
+This prevents information leakage.
+
+
+==================================================
+7. LATENT DECODER / RECONSTRUCTION HEAD
+==================================================
+
+A lightweight decoder can map:
+
+z ∈ R^32
+
+to:
+
+ŷ_G
+
+
+Conceptually:
+
+z
+↓
+Linear
+↓
+SiLU
+↓
+Linear
+↓
+Reconstructed graph-level target
+
+
+Recommended baseline:
+
+32
+→
+64
+→
+reconstruction dimension
+
+
+This decoder is intentionally lightweight.
+
+
+Its purpose is to provide a learning signal for the latent representation.
+
+
+It should NOT yet be described as a molecular generator.
+
+
+==================================================
+8. RECONSTRUCTION LOSS
+==================================================
+
+For continuous reconstruction targets, a simple baseline objective is:
+
+L_recon
+=
+MSE(
+    ŷ_G,
+    y_G
+)
+
+
+where:
+
+ŷ_G
+
+is the decoder prediction
+
+
+and:
+
+y_G
+
+is the true molecular reconstruction target.
+
+
+This encourages z to preserve structural information about the molecular graph.
+
+
+==================================================
+9. KL-DIVERGENCE REGULARIZATION
+==================================================
+
+The variational latent representation should also be regularized toward a
+standard Gaussian prior:
+
+p(z)
+=
+N(0,I)
+
+
+The KL divergence for each molecule is:
+
+L_KL
+=
+-1/2
+Σ
+[
+    1
+    +
+    log σ²
+    -
+    μ²
+    -
+    exp(log σ²)
+]
+
+
+This prevents the latent space from becoming an arbitrary collection of
+disconnected deterministic codes.
+
+
+It encourages:
+
+continuity
+
+smoothness
+
+sampling compatibility
+
+latent-space regularity.
+
+
+==================================================
+10. TOTAL VARIATIONAL OBJECTIVE
+==================================================
+
+The baseline Phase 10 loss should combine:
+
+reconstruction loss
+
+and:
+
+KL-divergence loss
+
+
+Conceptually:
+
+L_total
+=
+L_recon
++
+β L_KL
+
+
+where:
+
+β
+
+controls the strength of latent regularization.
+
+
+For the initial experiment, a relatively small KL weight is recommended so
+that reconstruction learning is not overwhelmed early in training.
+
+
+For example:
+
+BETA_KL = 0.001
+
+
+This is a baseline hyperparameter and must be documented rather than treated as
+a universally optimal value.
+
+
+==================================================
+11. KL ANNEALING
+==================================================
+
+A useful improvement is to gradually introduce KL regularization during the
+first part of training.
+
+
+Conceptually:
+
+β_t
+=
+β_max × annealing_factor
+
+
+Early epochs:
+
+β_t ≈ 0
+
+
+Later epochs:
+
+β_t → β_max
+
+
+This reduces the risk of:
+
+posterior collapse
+
+
+where the encoder ignores the molecular input and produces latent
+distributions that are too close to the prior.
+
+
+For the first implementation, either:
+
+fixed small β
+
+or:
+
+simple linear KL warm-up
+
+
+is acceptable.
+
+
+If KL annealing is implemented, it must be recorded in the experiment
+configuration.
+
+
+==================================================
+12. TRAINING PROCEDURE
+==================================================
+
+For every training batch:
+
+1. Load molecular graphs.
+
+2. Apply Phase 9 training-derived feature normalization.
+
+3. Pass graphs through the geometry-aware encoder.
+
+4. Obtain:
+
+   μ
+
+   log σ²
+
+   z
+
+5. Construct or retrieve reconstruction targets.
+
+6. Decode z into predicted reconstruction targets.
+
+7. Calculate reconstruction loss.
+
+8. Calculate KL divergence.
+
+9. Calculate total loss.
+
+10. Backpropagate gradients.
+
+11. Update encoder and reconstruction-decoder parameters.
+
+
+Conceptually:
+
+G
+↓
+Encoder
+↓
+μ, log σ²
+↓
+z
+↓
+Reconstruction Decoder
+↓
+ŷ
+↓
+Reconstruction Loss
+
++
+
+KL Loss
+
+↓
+Total Loss
+
+↓
+Backpropagation
+
+
+==================================================
+13. OPTIMIZER
+==================================================
+
+A suitable baseline optimizer is:
+
+Adam
+
+
+Recommended starting learning rate:
+
+LEARNING_RATE = 1e-3
+
+
+The learning rate should be recorded in the model configuration.
+
+
+No claim should be made that this is the optimal hyperparameter without
+systematic comparison.
+
+
+==================================================
+14. TRAINING EPOCHS
+==================================================
+
+The implementation should define a maximum number of epochs.
+
+
+For example:
+
+MAX_EPOCHS = 100
+
+
+However, the final model should preferably be selected using validation
+performance rather than simply taking the final epoch.
+
+
+==================================================
+15. EARLY STOPPING
+==================================================
+
+Use the validation corpus for early stopping.
+
+
+Monitor:
+
+validation total loss
+
+
+or preferably both:
+
+validation reconstruction loss
+
+validation KL loss
+
+
+A reasonable baseline patience may be:
+
+10–15 epochs
+
+
+The checkpoint with the best validation objective should be retained.
+
+
+The test dataset must not participate in early stopping.
+
+
+==================================================
+16. MODEL CHECKPOINTING
+==================================================
+
+Save at minimum:
+
+best encoder state
+
+best reconstruction-decoder state
+
+optimizer-independent model configuration
+
+normalization metadata
+
+best epoch
+
+training loss
+
+validation loss
+
+
+Recommended files:
+
+phase10_best_encoder.pt
+
+phase10_best_latent_decoder.pt
+
+phase10_training_history.csv
+
+phase10_training_config.json
+
+phase10_training_summary.json
+
+
+==================================================
+17. BASELINE LATENT REPRESENTATION EXTRACTION
+==================================================
+
+After selecting the best model, switch to deterministic encoding:
+
+z = μ
+
+
+Generate latent vectors for:
+
+training corpus
+
+validation corpus
+
+test corpus
+
+
+Each latent vector should have dimension:
+
+32
+
+
+Recommended outputs:
+
+phase10_train_latent.csv
+
+phase10_validation_latent.csv
+
+phase10_test_latent.csv
+
+
+Each row should contain:
+
+graph_id
+
+drug_id
+
+drug_name
+
+z_0
+
+z_1
+
+...
+
+z_31
+
+
+For clarity, these deterministic latent vectors may also be referred to as:
+
+μ-based baseline molecular embeddings.
+
+
+==================================================
+18. FISHER REFERENCE POLICY
+==================================================
+
+The Fisher-reference corpus was selected from the training corpus in Phase 8.
+
+
+During Phase 10:
+
+do NOT calculate Fisher information yet.
+
+
+However, once the best baseline encoder has been selected, deterministic
+baseline embeddings for Fisher-reference molecules may optionally be saved for
+diagnostic purposes.
+
+
+The actual Fisher-information calculation belongs to a later continual-learning
+phase.
+
+
+==================================================
+19. LATENT SPACE QUALITY CHECKS
+==================================================
+
+After training, Phase 10 should examine whether the latent representation is
+numerically and structurally usable.
+
+
+At minimum evaluate:
+
+finite latent values
+
+latent mean
+
+latent standard deviation
+
+per-dimension variance
+
+duplicate latent vectors
+
+near-zero-variance dimensions
+
+extremely large latent values
+
+
+The representation should not collapse to a single identical vector for all
+molecules.
+
+
+==================================================
+20. POSTERIOR-COLLAPSE CHECK
+==================================================
+
+Posterior collapse is an important risk in variational learning.
+
+
+Possible warning signs include:
+
+μ approximately zero for every molecule
+
+log σ² approximately zero for every molecule
+
+very small latent variance across the dataset
+
+KL divergence approaching zero immediately
+
+decoder reconstruction remaining poor
+
+
+Therefore Phase 10 should explicitly monitor:
+
+mean KL loss
+
+latent variance
+
+reconstruction loss
+
+
+Posterior collapse should be reported rather than silently ignored.
+
+
+==================================================
+21. RECONSTRUCTION PERFORMANCE
+==================================================
+
+Report reconstruction error separately for:
+
+training corpus
+
+validation corpus
+
+test corpus
+
+
+Do not report only the total variational loss.
+
+
+Recommended metrics include:
+
+MSE
+
+MAE
+
+
+These provide interpretable evidence that the learned latent vector retains
+information about molecular structure.
+
+
+==================================================
+22. LATENT SIMILARITY ANALYSIS
+==================================================
+
+The learned latent space may later support molecular similarity analysis.
+
+
+For deterministic embeddings:
+
+z = μ
+
+
+possible comparisons include:
+
+Euclidean distance
+
+cosine similarity
+
+
+However, Phase 10 should initially treat these as descriptive latent-space
+diagnostics.
+
+
+Do NOT immediately claim that nearby molecules are pharmacologically equivalent.
+
+
+==================================================
+23. STRUCTURAL RELATIONSHIP CLAIMS
+==================================================
+
+The Phase 10 objective is based primarily on chemical graph reconstruction.
+
+
+Therefore the strongest justified initial interpretation is:
+
+structurally related molecular representations may organize into meaningful
+regions of latent space.
+
+
+A stronger claim such as:
+
+"pharmacologically related molecules cluster together"
+
+
+requires explicit biological supervision or separate quantitative validation.
+
+
+DrugBank target associations alone should not automatically be interpreted as
+measured binding-affinity supervision.
+
+
+==================================================
+24. OPTIONAL BIOLOGICAL VALIDATION
+==================================================
+
+Phase 6 biological associations may later be used to evaluate whether molecules
+sharing:
+
+targets
+
+actions
+
+or human biological associations
+
+
+show measurable latent-space organization.
+
+
+This should be treated as:
+
+post-training biological validation
+
+
+rather than the core Phase 10 reconstruction objective.
+
+
+Biological information should remain separate from the chemical encoder input
+unless an explicitly supervised multimodal model is later introduced.
+
+
+==================================================
+25. IMPORTANT TEST-SET POLICY
+==================================================
+
+The test corpus should be evaluated only after:
+
+training is complete
+
+the best validation checkpoint is selected
+
+
+The test result represents held-out baseline generalization.
+
+
+Do NOT repeatedly inspect test performance while adjusting model
+hyperparameters.
+
+
+==================================================
+26. MODEL STATUS AFTER PHASE 10
+==================================================
+
+Unlike Phase 9, the encoder will now have undergone parameter optimization.
+
+
+Therefore after successful Phase 10 training it is appropriate to describe the
+model as:
+
+TRAINED BASELINE GEOMETRY-AWARE VARIATIONAL ENCODER
+
+
+It is then reasonable to state that:
+
+the model has learned a baseline continuous molecular representation from the
+DrugBank-derived molecular graph corpus.
+
+
+However, avoid overstating what the latent space represents.
+
+
+It is primarily a learned:
+
+chemical / structural molecular representation
+
+
+unless additional biological validation demonstrates stronger properties.
+
+
+==================================================
+27. WHAT PHASE 10 SHOULD PERFORM
+==================================================
+
+Phase 10 should perform:
+
+loading the initialized Phase 9 encoder
+
+loading training/validation/test molecular graphs
+
+reusing Phase 9 normalization
+
+constructing molecular reconstruction targets
+
+training-only reconstruction-target normalization
+
+constructing a lightweight latent reconstruction decoder
+
+variational sampling
+
+reconstruction-loss calculation
+
+KL-divergence calculation
+
+total-loss calculation
+
+encoder optimization
+
+decoder optimization
+
+validation monitoring
+
+early stopping
+
+best-checkpoint selection
+
+deterministic latent extraction
+
+latent quality-control analysis
+
+reconstruction evaluation
+
+training-history recording
+
+
+==================================================
+28. WHAT PHASE 10 SHOULD NOT PERFORM
+==================================================
+
+Phase 10 should NOT yet perform:
+
+full molecular generation
+
+SMILES generation
+
+SELFIES generation
+
+novel candidate generation
+
+QED-based optimization
+
+SA-based optimization
+
+target bioactivity prediction
+
+UCB acquisition
+
+Fisher-information estimation
+
+EWC regularization
+
+closed-loop adaptation
+
+
+These belong to later phases.
+
+
+==================================================
+29. RECOMMENDED OUTPUTS
+==================================================
+
+Training artifacts:
+
+phase10_training_config.json
+
+phase10_training_history.csv
+
+phase10_best_encoder.pt
+
+phase10_best_latent_decoder.pt
+
+
+Reconstruction artifacts:
+
+phase10_reconstruction_target_schema.json
+
+phase10_reconstruction_normalization.json
+
+phase10_reconstruction_metrics.csv
+
+
+Latent artifacts:
+
+phase10_train_latent.csv
+
+phase10_validation_latent.csv
+
+phase10_test_latent.csv
+
+
+Quality-control outputs:
+
+phase10_latent_qc.csv
+
+phase10_training_summary.csv
+
+phase10_training_summary.json
+
+
+==================================================
+30. QUALITY-CONTROL STATISTICS
+==================================================
+
+Report at minimum:
+
+training graphs
+
+validation graphs
+
+test graphs
+
+epochs completed
+
+best epoch
+
+best training reconstruction loss
+
+best validation reconstruction loss
+
+best validation total loss
+
+final KL loss
+
+test reconstruction MSE
+
+test reconstruction MAE
+
+latent dimension
+
+number of latent vectors generated
+
+finite latent vectors
+
+latent mean
+
+latent standard deviation
+
+minimum latent variance
+
+maximum latent variance
+
+near-zero variance dimensions
+
+duplicate latent vectors
+
+posterior-collapse warning status
+
+best checkpoint successfully reloadable
+
+
+==================================================
+31. COMPLETION CRITERIA
+==================================================
+
+Phase 10 is complete when:
+
+1. Phase 9 initialized encoder is loaded successfully.
+
+2. Phase 8 training corpus is used for optimization.
+
+3. Validation corpus is used only for validation/model selection.
+
+4. Test corpus is excluded from parameter optimization.
+
+5. Fisher reference corpus remains excluded from Fisher calculation.
+
+6. Phase 9 normalization parameters are reused.
+
+7. Reconstruction targets are defined deterministically.
+
+8. Reconstruction-target normalization is fitted on training data only.
+
+9. Latent reconstruction decoder is implemented.
+
+10. μ is produced for each molecular graph.
+
+11. log σ² is produced for each molecular graph.
+
+12. stochastic reparameterization is used during training.
+
+13. reconstruction loss is calculated.
+
+14. KL-divergence loss is calculated.
+
+15. total variational loss is calculated.
+
+16. gradients update encoder parameters.
+
+17. gradients update latent-decoder parameters.
+
+18. validation loss is monitored.
+
+19. early stopping / best-checkpoint selection is implemented.
+
+20. best model checkpoint is saved.
+
+21. best model checkpoint can be reloaded.
+
+22. deterministic latent extraction uses z = μ.
+
+23. 32-dimensional latent vectors are produced.
+
+24. train latent vectors are saved.
+
+25. validation latent vectors are saved.
+
+26. test latent vectors are saved.
+
+27. all latent vectors contain finite values.
+
+28. latent variance is evaluated.
+
+29. posterior collapse is checked.
+
+30. reconstruction metrics are reported separately.
+
+31. Phase-8 split assignments remain unchanged.
+
+32. no Fisher information is calculated.
+
+33. no EWC is applied.
+
+34. no candidate molecules are generated.
+
+35. the trained baseline latent molecular representation is ready for later
+    decoder/generative and continual-learning stages.
+
+
+==================================================
+IMPORTANT TERMINOLOGY AFTER PHASE 10
+==================================================
+
+After successful Phase 10 training, it is appropriate to say:
+
+"The geometry-aware variational encoder was trained on the DrugBank-derived
+baseline molecular graph corpus to learn a continuous structural molecular
+representation."
+
+
+It is also appropriate to say:
+
+"A baseline latent molecular representation was established."
+
+
+Do NOT yet claim:
+
+"The model learned binding affinity."
+
+"The model predicts therapeutic efficacy."
+
+"The model discovered pharmacologically superior molecules."
+
+"The latent space is biologically optimal."
+
+
+Those claims would require additional evidence and later experimental stages.
+
+
+==================================================
+FINAL PHASE 10 WORKFLOW
+==================================================
+
+DrugBank-Derived Training Molecular Graphs
+        ↓
+Phase 9 Geometry-Aware Encoder
+        ↓
+μ(G), log σ²(G)
+        ↓
+Reparameterization
+        ↓
+z ∈ R^32
+        ↓
+Lightweight Reconstruction Decoder
+        ↓
+Predicted Structural Summary
+        ↓
+Reconstruction Loss
+        +
+KL-Divergence
+        ↓
+Variational Training Objective
+        ↓
+Backpropagation
+        ↓
+Updated Encoder + Decoder
+        ↓
+Validation / Early Stopping
+        ↓
+Best Baseline Model
+        ↓
+Deterministic Encoding
+        ↓
+z = μ
+        ↓
+Baseline Learned Molecular Latent Representation
+
+
+NEXT PHASE
+
+Phase 11 — Molecular Decoder / Generative Representation Development
+==============================
+
+
+
+---
+
+PHASE 11 — MOLECULAR DECODER AND CANDIDATE GENERATION MODULE
+
+
+OBJECTIVE
+
+Phase 11 extends the trained baseline molecular latent representation from
+Phase 10 into a generative molecular system.
+
+The trained geometry-aware encoder maps molecular graphs into:
+
+z ∈ R^32
+
+
+Phase 11 introduces a generative decoder that learns the reverse relationship:
+
+Latent representation
+        ↓
+Sequence decoder
+        ↓
+Molecular sequence
+        ↓
+SELFIES
+        ↓
+Decoded molecular structure
+        ↓
+Canonical SMILES
+        ↓
+Chemical quality-control filtering
+        ↓
+Valid candidate molecules
+
+
+The purpose of Phase 11 is to establish a computationally manageable
+latent-to-molecule generation mechanism.
+
+It is NOT yet the closed-loop optimization stage.
+
+
+==================================================
+IMPORTANT PHASE-10 → PHASE-11 DISTINCTION
+==================================================
+
+Phase 10 trained:
+
+Graph
+↓
+Geometry-aware encoder
+↓
+z
+↓
+Structural-summary reconstruction
+
+
+The Phase-10 lightweight decoder was NOT a molecular generator.
+
+
+Therefore Phase 11 introduces a separate:
+
+GENERATIVE SEQUENCE DECODER
+
+
+The new decoder must learn:
+
+z
+→
+molecular sequence
+
+
+It should not reuse the Phase-10 structural reconstruction head as though it
+could directly generate molecules.
+
+
+==================================================
+PRIMARY INPUT
+==================================================
+
+Phase 10 provides:
+
+trained geometry-aware variational encoder
+
+best encoder checkpoint
+
+32-dimensional deterministic molecular embeddings
+
+training latent vectors
+
+validation latent vectors
+
+test latent vectors
+
+
+Phase 5 provides:
+
+standardized molecular structures
+
+
+The sequence-generation target should be based on:
+
+standardized_smiles
+
+
+or a derived:
+
+SELFIES representation
+
+
+The molecular structures used for decoder training must correspond to the same
+DrugBank molecule IDs used in the Phase-8 split.
+
+
+==================================================
+DATA POLICY
+==================================================
+
+Training molecules:
+
+613
+
+
+Validation molecules:
+
+76
+
+
+Test molecules:
+
+78
+
+
+The same Phase-8 molecule-level split must be preserved.
+
+
+Only training molecules may update decoder parameters.
+
+
+Validation molecules may be used for:
+
+decoder validation
+
+early stopping
+
+model selection
+
+
+Test molecules must remain excluded from:
+
+parameter optimization
+
+early stopping
+
+hyperparameter selection
+
+
+The Fisher-reference subset remains unrelated to decoder training and should
+remain reserved for later continual-learning stages.
+
+
+==================================================
+1. GENERATIVE REPRESENTATION
+==================================================
+
+Recommended primary representation:
+
+SELFIES
+
+
+Conceptually:
+
+standardized SMILES
+        ↓
+SELFIES conversion
+        ↓
+SELFIES token sequence
+
+
+SELFIES is recommended because it reduces the frequency of syntactically
+invalid molecular strings during generation.
+
+
+However:
+
+SELFIES validity does NOT remove the need for chemical validation.
+
+
+Every generated molecule must still be checked using a chemistry toolkit such
+as RDKit.
+
+
+==================================================
+2. WHY SELFIES IS PREFERRED FOR THE BASELINE
+==================================================
+
+Direct SMILES generation can fail because generated sequences may contain:
+
+unclosed rings
+
+invalid branches
+
+invalid atom syntax
+
+incorrect token combinations
+
+
+SELFIES provides a more robust molecular sequence representation.
+
+
+Therefore the preferred pipeline is:
+
+z
+↓
+SELFIES decoder
+↓
+Generated SELFIES
+↓
+SELFIES-to-SMILES conversion
+↓
+RDKit molecular parsing
+↓
+Chemical QC
+
+
+SMILES should still be stored because it is useful for:
+
+RDKit processing
+
+canonicalization
+
+comparison
+
+downstream evaluation.
+
+
+==================================================
+3. TOKENIZATION
+==================================================
+
+Construct the decoder vocabulary using:
+
+TRAINING MOLECULES ONLY
+
+
+Required special tokens:
+
+<PAD>
+
+<BOS>
+
+<EOS>
+
+<UNK>
+
+
+where:
+
+PAD = sequence padding
+
+BOS = beginning of sequence
+
+EOS = end of sequence
+
+UNK = unknown token
+
+
+SELFIES tokens should remain chemically meaningful units rather than
+character-level splitting.
+
+
+Example conceptual sequence:
+
+<BOS>
+[C]
+[C]
+[O]
+<EOS>
+
+
+==================================================
+4. VOCABULARY LEAKAGE POLICY
+==================================================
+
+The decoder vocabulary should be built from:
+
+training molecular sequences only.
+
+
+Validation and test sequences must not be used to construct the vocabulary.
+
+
+If a validation/test molecule contains an unseen token:
+
+<UNK>
+
+or another explicitly documented handling mechanism should be used.
+
+
+This prevents sequence-vocabulary leakage.
+
+
+==================================================
+5. SEQUENCE LENGTH
+==================================================
+
+Determine sequence lengths using training data.
+
+
+A maximum decoder length must be defined.
+
+
+The selected value should be based on the observed training sequence
+distribution rather than an arbitrary extremely large value.
+
+
+Report:
+
+minimum sequence length
+
+median sequence length
+
+maximum sequence length
+
+selected decoder maximum length
+
+number of molecules truncated
+
+
+Prefer a maximum length that avoids truncating training molecules where
+computationally feasible.
+
+
+==================================================
+6. GENERATIVE DECODER ARCHITECTURE
+==================================================
+
+A very large transformer is not necessary for the baseline implementation.
+
+
+Recommended lightweight architecture:
+
+Latent vector z
+        ↓
+Latent projection
+        ↓
+Initial recurrent hidden state
+        ↓
+Token embedding
+        ↓
+GRU decoder
+        ↓
+Linear vocabulary projection
+        ↓
+Token probabilities
+
+
+Recommended baseline:
+
+LATENT_DIM = 32
+
+TOKEN_EMBED_DIM = 64
+
+DECODER_HIDDEN_DIM = 128
+
+NUM_GRU_LAYERS = 2
+
+
+This is computationally manageable for the current molecular corpus.
+
+
+==================================================
+7. LATENT CONDITIONING
+==================================================
+
+The decoder must actually depend on the molecular latent representation.
+
+
+One baseline strategy is:
+
+z
+↓
+Linear projection
+↓
+initial GRU hidden state
+
+
+For two GRU layers:
+
+z
+→
+hidden states for decoder layers
+
+
+This makes sequence generation conditional on the learned molecular
+representation.
+
+
+An optional later extension may concatenate a projected latent vector with each
+token embedding.
+
+
+==================================================
+8. TEACHER-FORCED DECODER TRAINING
+==================================================
+
+During decoder training, use teacher forcing.
+
+
+For target sequence:
+
+<BOS> T1 T2 T3 ... TN <EOS>
+
+
+decoder input:
+
+<BOS> T1 T2 T3 ... TN
+
+
+prediction target:
+
+T1 T2 T3 ... TN <EOS>
+
+
+The decoder learns:
+
+P(
+    token_t
+    |
+    previous tokens,
+    z
+)
+
+
+==================================================
+9. DECODER LOSS
+==================================================
+
+Use token-level categorical cross entropy.
+
+
+The PAD token must be ignored in loss calculation.
+
+
+Conceptually:
+
+L_decoder
+=
+CrossEntropy(
+    predicted_token_distribution,
+    true_next_token
+)
+
+
+This is different from the Phase-10 structural reconstruction loss.
+
+
+==================================================
+10. ENCODER POLICY
+==================================================
+
+For the initial Phase-11 baseline, the Phase-10 encoder should preferably be:
+
+FROZEN
+
+
+during sequence-decoder training.
+
+
+Therefore:
+
+trained Phase-10 encoder
+        ↓
+fixed z = μ
+        ↓
+train generative decoder
+
+
+This preserves the already validated baseline latent representation and allows
+decoder performance to be evaluated independently.
+
+
+Later experiments may fine-tune:
+
+encoder + decoder jointly
+
+
+but that should be treated as a separate experiment because joint fine-tuning
+changes the previously learned latent representation.
+
+
+==================================================
+11. TRAINING LATENT REPRESENTATION
+==================================================
+
+Use deterministic Phase-10 embeddings:
+
+z = μ
+
+
+for decoder training.
+
+
+This avoids introducing unnecessary latent sampling noise while establishing
+the first sequence-generation baseline.
+
+
+Therefore:
+
+Phase-10 training molecule
+        ↓
+μ ∈ R^32
+        ↓
+SELFIES sequence
+
+
+becomes a paired training sample.
+
+
+==================================================
+12. DECODER TRAINING PROCEDURE
+==================================================
+
+For each training molecule:
+
+1. Retrieve drug_id.
+
+2. Retrieve deterministic latent vector μ.
+
+3. Retrieve standardized SMILES.
+
+4. Convert SMILES to SELFIES.
+
+5. Tokenize SELFIES.
+
+6. Add BOS and EOS tokens.
+
+7. Pad sequence.
+
+8. Project latent vector into decoder hidden state.
+
+9. Apply teacher forcing.
+
+10. Predict next token.
+
+11. Calculate cross-entropy loss.
+
+12. Backpropagate through decoder.
+
+13. Update decoder parameters.
+
+
+The Phase-10 encoder remains frozen in the baseline decoder experiment.
+
+
+==================================================
+13. VALIDATION
+==================================================
+
+Validation should report at minimum:
+
+validation token loss
+
+token accuracy
+
+exact sequence reconstruction rate
+
+SELFIES decode success
+
+RDKit parse success
+
+canonical molecule reconstruction rate
+
+
+The best decoder checkpoint should be selected using validation performance.
+
+
+==================================================
+14. EXACT MOLECULE RECONSTRUCTION
+==================================================
+
+Token-level accuracy alone is insufficient.
+
+
+A decoded sequence may differ token-wise but still represent the same molecular
+structure.
+
+
+Therefore molecular reconstruction should also be evaluated after:
+
+SELFIES → SMILES
+↓
+RDKit parse
+↓
+standardization/canonicalization
+
+
+Then compare:
+
+predicted canonical SMILES
+
+against:
+
+reference canonical standardized SMILES
+
+
+This provides a chemically meaningful reconstruction metric.
+
+
+==================================================
+15. GENERATION MODES
+==================================================
+
+Phase 11 should support at least two modes.
+
+
+MODE A — LATENT RECONSTRUCTION
+
+Known molecule
+↓
+trained encoder
+↓
+μ
+↓
+decoder
+↓
+reconstructed molecule
+
+
+This tests whether the latent representation can be decoded.
+
+
+MODE B — LATENT PERTURBATION GENERATION
+
+Known latent vector:
+
+z
+
+
+Create:
+
+z'
+=
+z
++
+δ
+
+
+where:
+
+δ
+
+is a small controlled perturbation.
+
+
+Then:
+
+z'
+↓
+decoder
+↓
+candidate molecule
+
+
+This allows local exploration around known molecular regions.
+
+
+==================================================
+16. RANDOM PRIOR SAMPLING
+==================================================
+
+The VAE formulation also permits sampling:
+
+z ~ N(0,I)
+
+
+and decoding z.
+
+
+However, random prior sampling should be treated as an exploratory experiment.
+
+
+Because Phase 10 used a small KL weight:
+
+β = 0.001
+
+
+the aggregate learned latent distribution may not perfectly match the standard
+normal prior.
+
+
+Therefore candidate validity from random prior sampling must be measured
+rather than assumed.
+
+
+==================================================
+17. GENERATION STRATEGY
+==================================================
+
+The decoder should support configurable token-selection strategies.
+
+
+Baseline options:
+
+greedy decoding
+
+temperature sampling
+
+top-k sampling
+
+
+Recommended initial validation:
+
+greedy decoding
+
+
+Recommended candidate-generation experiment:
+
+temperature sampling
+
+
+Example baseline:
+
+TEMPERATURE = 1.0
+
+
+Optional:
+
+TOP_K = 10
+
+
+These are experimental parameters and should be recorded.
+
+
+==================================================
+18. GENERATION TERMINATION
+==================================================
+
+Generation stops when:
+
+<EOS>
+
+is produced
+
+
+or when:
+
+MAX_SEQUENCE_LENGTH
+
+is reached.
+
+
+Generated PAD tokens should not be interpreted as molecular tokens.
+
+
+==================================================
+19. GENERATED MOLECULE VALIDATION PIPELINE
+==================================================
+
+Every generated molecular candidate must pass the following sequence:
+
+
+Generated token sequence
+        ↓
+SELFIES syntax / decoding check
+        ↓
+Convert SELFIES to SMILES
+        ↓
+RDKit molecular parsing
+        ↓
+RDKit sanitization
+        ↓
+Valence validation
+        ↓
+Standardization
+        ↓
+Canonical SMILES generation
+        ↓
+Molecular feasibility checks
+        ↓
+Duplicate removal
+        ↓
+Novelty assessment
+        ↓
+Accepted candidate
+
+
+==================================================
+20. SYNTAX VALIDATION
+==================================================
+
+Check whether:
+
+generated token sequence
+
+can be converted into a valid SELFIES molecular representation.
+
+
+If decoding fails:
+
+reject candidate
+
+
+Record the reason:
+
+SELFIES_DECODE_FAILURE
+
+
+==================================================
+21. CHEMICAL PARSING
+==================================================
+
+Convert generated SELFIES to:
+
+SMILES
+
+
+Then construct:
+
+RDKit Mol
+
+
+If parsing fails:
+
+reject candidate
+
+
+Record:
+
+RDKIT_PARSE_FAILURE
+
+
+==================================================
+22. SANITIZATION
+==================================================
+
+Each parsed molecule must pass RDKit sanitization.
+
+
+This checks important chemical consistency constraints.
+
+
+If sanitization fails:
+
+reject candidate
+
+
+Record:
+
+SANITIZATION_FAILURE
+
+
+==================================================
+23. VALENCE VALIDATION
+==================================================
+
+Generated
+
+
+---
+PHASE 12 — BASELINE SYSTEM CONSOLIDATION, PREDICTOR TRAINING, AND REFERENCE-STATE ESTABLISHMENT
+
+
+OBJECTIVE
+
+Phase 12 establishes the complete baseline reference state of the molecular
+discovery system before any closed-loop adaptation, continual learning, Fisher
+information calculation, or Elastic Weight Consolidation is performed.
+
+
+Earlier phases have already established:
+
+Phase 10:
+Trained baseline geometry-aware variational encoder
+
+Phase 10:
+Baseline continuous molecular latent representation
+
+Phase 11:
+Trained latent-conditioned molecular generative decoder
+
+
+Therefore Phase 12 should NOT retrain these components from scratch.
+
+
+Instead, Phase 12 should:
+
+1. Load the best trained baseline encoder.
+
+2. Load the best trained generative decoder.
+
+3. Train and validate the baseline biological-relevance predictor.
+
+4. Establish the fixed baseline latent representation Z0.
+
+5. Consolidate encoder, decoder, predictor, preprocessing metadata, and baseline
+   statistics.
+
+6. Freeze the complete baseline parameter state.
+
+7. Save the reference parameter state against which later adaptation and
+   parameter drift will be measured.
+
+
+==================================================
+BASELINE SYSTEM COMPONENTS
+==================================================
+
+The baseline molecular discovery system contains three principal learnable
+components:
+
+
+ENCODER
+
+Parameters:
+
+θE*
+
+
+Function:
+
+Molecular Graph
+↓
+Geometry-Aware Equivariant Encoder
+↓
+Latent Molecular Representation
+
+
+The trained encoder comes from Phase 10.
+
+
+--------------------------------------------------
+
+GENERATIVE DECODER
+
+Parameters:
+
+θD*
+
+
+Function:
+
+Latent Molecular Representation
+↓
+Latent-Conditioned SELFIES Decoder
+↓
+Molecular Candidate Representation
+
+
+The trained generative decoder comes from Phase 11.
+
+
+--------------------------------------------------
+
+PREDICTOR
+
+Parameters:
+
+θP*
+
+
+Function:
+
+Latent Molecular Representation
+and/or molecular representation
+↓
+Biological-Relevance Predictor
+↓
+Baseline Predictive Score
+
+
+The predictor should be trained in Phase 12 using only biological information
+that is legitimately available from the DrugBank-derived baseline corpus.
+
+
+==================================================
+IMPORTANT TERMINOLOGY
+==================================================
+
+The predictor should NOT be called a:
+
+binding-affinity predictor
+
+
+unless quantitative experimental affinity data such as:
+
+Ki
+Kd
+IC50
+EC50
+
+are actually available and used as labels.
+
+
+The DrugBank target associations extracted earlier provide:
+
+drug-target associations
+
+known-action information
+
+actions
+
+organism information
+
+protein/polypeptide information
+
+
+Therefore the safest baseline terminology is:
+
+biological-relevance predictor
+
+or:
+
+target-association predictor
+
+
+depending on the exact prediction objective selected.
+
+
+==================================================
+BASELINE LATENT MANIFOLD
+==================================================
+
+Phase 10 established deterministic molecular latent vectors:
+
+z = μ
+
+
+for the baseline molecular corpus.
+
+
+These vectors define the baseline latent representation:
+
+Z0
+
+
+Conceptually:
+
+DrugBank-Derived Molecular Graphs
+        ↓
+Trained Baseline Encoder θE*
+        ↓
+μ
+        ↓
+Z0
+
+
+Because the Phase-10 encoder was frozen during Phase 11 decoder training:
+
+Z0
+
+remains the reference latent molecular representation unless the encoder is
+subsequently fine-tuned.
+
+
+==================================================
+IMPORTANT DISTINCTION
+==================================================
+
+The following statements should remain separate:
+
+
+XML
+
+=
+
+baseline chemical and biological knowledge source
+
+
+Graph corpus
+
+=
+
+computational molecular representation
+
+
+Z0
+
+=
+
+learned baseline latent molecular representation
+
+
+Θ*
+
+=
+
+complete frozen baseline model parameter state
+
+
+==================================================
+PRIMARY INPUTS
+==================================================
+
+Phase 8 provides:
+
+Training corpus   = 613 graphs
+
+Validation corpus = 76 graphs
+
+Test corpus       = 78 graphs
+
+Fisher reference  = 128 training-derived graphs
+
+
+Phase 10 provides:
+
+phase10_best_encoder.pt
+
+phase10_train_latent.csv
+
+phase10_validation_latent.csv
+
+phase10_test_latent.csv
+
+
+Phase 11 provides:
+
+phase11_best_generative_decoder.pt
+
+
+Phase 6 provides:
+
+D_bio_association
+
+
+which contains the DrugBank-derived biological association information.
+
+
+==================================================
+1. BASELINE ENCODER STATE
+==================================================
+
+Load the best trained encoder checkpoint from Phase 10.
+
+
+The baseline encoder parameters are denoted:
+
+θE*
+
+
+These parameters must NOT be modified during reference-state establishment.
+
+
+The encoder should be placed in evaluation mode when baseline latent vectors are
+recomputed or verified.
+
+
+==================================================
+2. BASELINE DECODER STATE
+==================================================
+
+Load the best trained molecular generative decoder from Phase 11.
+
+
+The baseline decoder parameters are denoted:
+
+θD*
+
+
+These parameters represent the baseline latent-to-molecule generation state.
+
+
+They must be frozen before later closed-loop adaptation begins.
+
+
+==================================================
+3. BASELINE PREDICTOR
+==================================================
+
+Phase 12 should introduce the predictor required by the later candidate
+evaluation and closed-loop prioritization stages.
+
+
+Recommended baseline objective:
+
+predict DrugBank-grounded biological relevance from the molecular latent
+representation.
+
+
+A practical baseline predictor may operate on:
+
+z = μ ∈ R^32
+
+
+Conceptually:
+
+z
+↓
+Fully Connected Layer
+↓
+Nonlinearity
+↓
+Output Layer
+↓
+Biological-Relevance Prediction
+
+
+==================================================
+4. PREDICTOR TARGET DESIGN
+==================================================
+
+The exact predictor label must be defined carefully.
+
+
+One practical baseline is:
+
+HAS BIOLOGICAL ASSOCIATION
+
+
+Binary target:
+
+1
+=
+molecule has one or more DrugBank target associations
+
+
+0
+=
+molecule has no DrugBank target association
+
+
+However, because almost all current graph molecules have biological
+associations, this target may be highly imbalanced and may provide limited
+learning value.
+
+
+A stronger alternative is a multi-label target representation based on:
+
+selected DrugBank targets
+
+target families
+
+action categories
+
+or biological association classes
+
+
+The final target must be selected based on:
+
+class support
+
+sample count
+
+data imbalance
+
+biological interpretability
+
+
+==================================================
+5. RECOMMENDED PREDICTOR STRATEGY
+==================================================
+
+For the current baseline corpus, a more informative predictor is recommended:
+
+
+MULTI-LABEL TARGET-ASSOCIATION PREDICTOR
+
+
+For each molecule:
+
+z ∈ R^32
+
+
+predict:
+
+y ∈ {0,1}^K
+
+
+where:
+
+K
+
+is the number of selected sufficiently supported biological target classes.
+
+
+To avoid extremely sparse outputs, only targets meeting a predefined minimum
+training-support threshold should be included.
+
+
+For example:
+
+MIN_TARGET_SUPPORT = 5
+
+
+The exact threshold must be reported.
+
+
+==================================================
+6. TRAINING-ONLY LABEL CONSTRUCTION
+==================================================
+
+The predictor label space must be defined using:
+
+TRAINING DATA ONLY
+
+
+This prevents information leakage from validation and test molecules.
+
+
+Therefore:
+
+training biological associations
+↓
+target-frequency calculation
+↓
+supported target selection
+↓
+fixed target vocabulary
+
+
+Validation and test molecules are then projected into the same target space.
+
+
+==================================================
+7. PREDICTOR ARCHITECTURE
+==================================================
+
+A lightweight baseline is appropriate.
+
+
+Recommended architecture:
+
+32
+↓
+64
+↓
+32
+↓
+K
+
+
+with:
+
+SiLU or ReLU
+
+dropout if required
+
+sigmoid output during inference
+
+
+The predictor output layer should have:
+
+K dimensions
+
+
+for multi-label target prediction.
+
+
+==================================================
+8. PREDICTOR LOSS
+==================================================
+
+For multi-label prediction use:
+
+Binary Cross Entropy with Logits
+
+
+Conceptually:
+
+L_predictor
+=
+BCEWithLogitsLoss(
+    predicted logits,
+    true multi-label target vector
+)
+
+
+If class imbalance is substantial, positive-class weighting may be estimated
+using:
+
+TRAINING DATA ONLY.
+
+
+==================================================
+9. PREDICTOR DATA POLICY
+==================================================
+
+Only training molecules may update:
+
+θP
+
+
+Validation molecules may be used for:
+
+early stopping
+
+hyperparameter selection
+
+checkpoint selection
+
+
+Test molecules must remain excluded until the best predictor checkpoint has
+been selected.
+
+
+==================================================
+10. ENCODER POLICY DURING PREDICTOR TRAINING
+==================================================
+
+The baseline encoder should remain:
+
+FROZEN
+
+
+during predictor training.
+
+
+Therefore:
+
+molecular graph
+↓
+fixed trained encoder
+↓
+z = μ
+↓
+predictor
+
+
+or equivalently use the already saved deterministic Phase-10 latent vectors.
+
+
+This keeps:
+
+θE*
+
+unchanged while learning:
+
+θP*
+
+
+==================================================
+11. PREDICTOR VALIDATION METRICS
+==================================================
+
+Because the task is multi-label, report metrics such as:
+
+micro F1
+
+macro F1
+
+micro precision
+
+micro recall
+
+average precision
+
+ROC-AUC where mathematically defined
+
+
+Do not rely on simple classification accuracy alone.
+
+
+==================================================
+12. BASELINE PREDICTOR CHECKPOINT
+==================================================
+
+After validation-based model selection, save:
+
+θP*
+
+
+as the baseline predictor state.
+
+
+Recommended file:
+
+phase12_best_baseline_predictor.pt
+
+
+==================================================
+13. COMPLETE BASELINE PARAMETER STATE
+==================================================
+
+After all baseline components are available, define:
+
+Θ*
+
+as:
+
+Θ*
+=
+{
+    θE*,
+    θD*,
+    θP*
+}
+
+
+where:
+
+θE*
+=
+trained baseline encoder parameters
+
+
+θD*
+=
+trained baseline molecular decoder parameters
+
+
+θP*
+=
+trained baseline predictor parameters
+
+
+==================================================
+14. BASELINE LATENT REFERENCE
+==================================================
+
+The baseline latent representation is:
+
+Z0
+
+
+with:
+
+Z0
+=
+{
+    μ(G1),
+    μ(G2),
+    ...
+}
+
+
+for the baseline molecular corpus.
+
+
+The deterministic representation:
+
+z = μ
+
+
+should be used for reference-state comparisons.
+
+
+==================================================
+15. BASELINE SYSTEM SNAPSHOT
+==================================================
+
+The baseline system snapshot should include more than neural-network weights.
+
+
+It should preserve:
+
+encoder parameters
+
+decoder parameters
+
+predictor parameters
+
+latent dimension
+
+hidden dimensions
+
+model architectures
+
+SELFIES vocabulary
+
+feature normalization
+
+target label vocabulary
+
+predictor label schema
+
+Phase-8 split assignments
+
+baseline latent vectors
+
+DrugBank dataset version
+
+random seed
+
+training configuration
+
+software/library versions where practical
+
+
+This allows the baseline state to be reconstructed exactly.
+
+
+==================================================
+16. PARAMETER-DRIFT REFERENCE
+==================================================
+
+Later closed-loop adaptation will produce updated model parameters:
+
+Θ(t)
+
+
+Parameter drift should be measured relative to:
+
+Θ*
+
+
+For a parameter tensor θ:
+
+Δθ
+=
+θ(t)
+-
+θ*
+
+
+Possible drift measurements include:
+
+L2 norm
+
+relative L2 norm
+
+cosine change
+
+layer-wise parameter displacement
+
+
+Phase 12 should establish the reference state only.
+
+
+It should NOT yet perform adaptation.
+
+
+==================================================
+17. LATENT-DRIFT REFERENCE
+==================================================
+
+Later adaptation may also change the encoder representation.
+
+
+Therefore retain the fixed baseline latent vectors:
+
+Z0
+
+
+For a reference molecule G:
+
+z0(G)
+
+=
+baseline latent vector
+
+
+Later:
+
+zt(G)
+
+=
+adapted latent vector
+
+
+Latent drift may then be measured as:
+
+||zt(G) - z0(G)||
+
+
+This is different from parameter drift and should be tracked separately.
+
+
+==================================================
+18. FISHER REFERENCE POLICY
+==================================================
+
+Phase 8 created the fixed Fisher-reference subset.
+
+
+During Phase 12:
+
+do NOT yet perform EWC.
+
+
+Fisher information may be calculated in the subsequent continual-learning
+reference phase using the finalized baseline model.
+
+
+The Fisher subset must remain unchanged.
+
+
+==================================================
+19. MODEL HASH / INTEGRITY CHECK
+==================================================
+
+For reproducibility, Phase 12 should calculate and store a deterministic
+checksum or hash for the baseline model checkpoints.
+
+
+At minimum record hashes for:
+
+baseline encoder checkpoint
+
+baseline decoder checkpoint
+
+baseline predictor checkpoint
+
+
+This helps verify later that:
+
+Θ*
+
+has not been accidentally overwritten.
+
+
+==================================================
+20. BASELINE SYSTEM VALIDATION
+==================================================
+
+Before freezing Θ*, verify:
+
+encoder checkpoint reloads successfully
+
+decoder checkpoint reloads successfully
+
+predictor checkpoint reloads successfully
+
+latent dimension = 32
+
+baseline embeddings are finite
+
+decoder can generate from baseline embeddings
+
+predictor produces finite outputs
+
+training/validation/test assignments remain unchanged
+
+Fisher subset remains unchanged
+
+
+==================================================
+21. WHAT PHASE 12 SHOULD PERFORM
+==================================================
+
+Phase 12 should perform:
+
+load trained Phase-10 encoder
+
+load trained Phase-11 decoder
+
+construct baseline predictor labels
+
+train baseline predictor
+
+validate predictor
+
+select best predictor checkpoint
+
+freeze encoder parameters
+
+freeze decoder parameters
+
+freeze predictor parameters
+
+verify Z0
+
+save baseline latent reference
+
+save target label vocabulary
+
+save complete baseline configuration
+
+save baseline model hashes
+
+construct Θ* metadata
+
+verify checkpoint reloadability
+
+
+==================================================
+22. WHAT PHASE 12 SHOULD NOT PERFORM
+==================================================
+
+Phase 12 should NOT perform:
+
+candidate optimization
+
+UCB acquisition
+
+closed-loop feedback
+
+Fisher-guided updates
+
+EWC regularization
+
+continual learning
+
+encoder adaptation
+
+decoder adaptation
+
+predictor adaptation
+
+parameter-drift optimization
+
+candidate ranking for therapeutic superiority
+
+
+Those belong to later phases.
+
+
+==================================================
+23. RECOMMENDED OUTPUTS
+==================================================
+
+Predictor outputs:
+
+phase12_predictor_config.json
+
+phase12_predictor_target_vocabulary.json
+
+phase12_predictor_training_history.csv
+
+phase12_best_baseline_predictor.pt
+
+phase12_predictor_metrics.csv
+
+
+Baseline latent reference:
+
+phase12_baseline_latent_reference.csv
+
+
+Baseline-system snapshot:
+
+phase12_baseline_system_config.json
+
+phase12_baseline_parameter_manifest.json
+
+phase12_baseline_model_hashes.json
+
+phase12_baseline_state_summary.csv
+
+phase12_baseline_state_summary.json
+
+
+==================================================
+24. PHASE 12 COMPLETION CRITERIA
+==================================================
+
+Phase 12 is complete when:
+
+1. The Phase-10 encoder checkpoint loads successfully.
+
+2. The Phase-11 generative decoder checkpoint loads successfully.
+
+3. Phase-10 latent vectors are verified.
+
+4. Baseline latent dimension remains 32.
+
+5. Predictor label space is derived from training data only.
+
+6. Baseline biological-relevance predictor is implemented.
+
+7. Predictor is trained using training molecules only.
+
+8. Validation data is used for predictor model selection.
+
+9. Test data is excluded from predictor model selection.
+
+10. Best predictor checkpoint is saved.
+
+11. Best predictor checkpoint reloads successfully.
+
+12. Encoder parameters are frozen.
+
+13. Decoder parameters are frozen.
+
+14. Predictor parameters are frozen after training.
+
+15. θE* is preserved.
+
+16. θD* is preserved.
+
+17. θP* is established.
+
+18. Z0 is saved.
+
+19. All baseline latent vectors are finite.
+
+20. Phase-8 split assignments remain unchanged.
+
+21. Fisher reference subset remains unchanged.
+
+22. Model hashes are saved.
+
+23. Θ* metadata is saved.
+
+24. No closed-loop adaptation has occurred.
+
+25. No EWC has occurred.
+
+26. No parameter drift has yet been introduced.
+
+27. The baseline system is ready to serve as the reference state for later
+    continual adaptation.
+
+
+==================================================
+IMPORTANT TERMINOLOGY AFTER PHASE 12
+==================================================
+
+After successful Phase 12 it is appropriate to state:
+
+"The complete baseline molecular discovery system was consolidated and frozen
+as the reference state Θ*."
+
+
+It is also appropriate to state:
+
+"The baseline parameter state comprises the trained encoder, molecular
+generative decoder, and DrugBank-grounded biological-relevance predictor."
+
+
+And:
+
+"The baseline latent molecular representation Z0 was retained as the reference
+latent state for subsequent drift analysis."
+
+
+Do NOT yet claim:
+
+"The system has self-evolved."
+
+"The model has improved through feedback."
+
+"The model has performed continual learning."
+
+"Parameter drift has occurred."
+
+"EWC has preserved prior knowledge."
+
+
+Those statements only become valid after later adaptive-learning stages.
+
+
+==================================================
+FINAL PHASE 12 WORKFLOW
+==================================================
+
+DrugBank-Derived Baseline Corpus
+        ↓
+Phase-10 Trained Encoder
+        ↓
+θE*
+        ↓
+Baseline Latent Representation Z0
+        ↓
+Phase-11 Trained Molecular Decoder
+        ↓
+θD*
+        ↓
+DrugBank Biological Associations
+        ↓
+Training-Only Predictor Label Space
+        ↓
+Baseline Predictor Training
+        ↓
+θP*
+        ↓
+        ┌───────────────────────┐
+        │         Θ*            │
+        │                       │
+        │  θE*                  │
+        │  θD*                  │
+        │  θP*                  │
+        └───────────────────────┘
+                  ↓
+      Baseline Reference Snapshot
+                  ↓
+      Model Hash / Integrity Record
+                  ↓
+      Reference State for Later Drift,
+      Fisher Information, EWC and
+      Closed-Loop Adaptation
+
+
+NEXT PHASE
+
+Phase 13 — Fisher Information Estimation and Continual-Learning Reference
+Construction
+
+
+
+---
+
+# Phase 13 — Baseline Knowledge Consolidation
+
+This phase should happen **before the first closed-loop cycle**.
+
+After baseline training:
+
+```text
+Trained baseline model
+      ↓
+Freeze/copy reference parameters Θ*
+      ↓
+Estimate parameter importance
+      ↓
+Diagonal empirical Fisher matrix F
+```
+
+Your original workflow specifically proposed calculating a **diagonal Fisher approximation**, rather than a dense Fisher matrix, for computational practicality. Pasted text
+
+This produces:
+
+\[
+F_j
+\]
+
+for each relevant model parameter.
+
+Together:
+
+```text
+Θ*
++
+F
+```
+
+represent the consolidated chemical knowledge that subsequent adaptation should preserve.
+
+---
+
+# Phase 14 — Candidate Generation from the Latent Space
+
+The first closed-loop cycle then begins.
+
+Candidates can originate from:
+
+```text
+Latent sampling
+Latent perturbation
+Interpolation
+Neighborhood sampling
+Decoder-driven generation
+```
+
+rather than simply randomly taking existing DrugBank molecules.
+
+This distinction is important.
+
+Your earlier demonstration code used existing DrugBank SMILES as candidate placeholders in the loop. Pasted text
+
+That may be useful during debugging, but the final implementation should demonstrate that the decoder actually proposes candidates from the learned latent representation wherever feasible.
+
+The candidate pool should therefore be:
+
+\[
+C_t=\{c_1,c_2,\dots,c_n\}
+\]
+
+at cycle \(t\).
+
+---
+
+# Phase 15 — Chemical Validity and Novelty Screening
+
+Before pharmacological scoring, generated candidates should undergo a screening stage.
+
+Evaluate:
+
+```text
+Validity
+Uniqueness
+Novelty
+Molecular size
+Valence correctness
+Disconnected fragments
+Basic physicochemical feasibility
+```
+
+This phase prevents malformed candidates from entering the feedback engine.
+
+The accepted candidates proceed to the in-silico evaluation engine.
+
+---
+
+# Phase 16 — In-Silico Multi-Objective Evaluation
+
+The original pipeline evaluated candidate molecules using drug-likeness, accessibility and a bioactivity-related surrogate. Pasted text
+
+That structure remains appropriate.
+
+Each valid candidate can receive:
+
+### Chemical quality
+
+\[
+QED
+\]
+
+### Synthetic accessibility
+
+\[
+SA
+\]
+
+### Biological relevance / surrogate score
+
+\[
+\hat y
+\]
+
+### Model uncertainty
+
+\[
+\sigma
+\]
+
+Other physicochemical properties can optionally include:
+
+```text
+Molecular weight
+LogP
+TPSA
+H-bond donors
+H-bond acceptors
+Rotatable bonds
+```
+
+The important methodological principle is that the feedback engine produces a **multi-objective computational evaluation**, rather than relying on a single property.
+
+---
+
+# Phase 17 — Surrogate Bioactivity/Relevance Predictor
+
+A predictive head should operate over molecular representations.
+
+Conceptually:
+
+```text
+Molecule
+   ↓
+Encoder
+   ↓
+Latent z
+   ↓
+Surrogate predictor
+   ↓
+Predicted biological relevance
+```
+
+Its supervision should come from the DrugBank XML-derived biological relationships.
+
+This is another place where moving to XML helps: the molecular record and its biological associations come from the same hierarchical DrugBank source.
+
+The predictor should be described according to what the available labels actually support.
+
+If the XML gives association labels but not quantitative experimental activity values, call the prediction:
+
+```text
+target association
+biological relevance
+bioactivity prioritization
+```
+
+rather than claiming measured binding affinity.
+
+---
+
+# Phase 18 — Epistemic Uncertainty Estimation
+
+For active learning, the system needs not only a predicted score but also confidence/uncertainty.
+
+A lightweight approach is:
+
+```text
+Repeated stochastic model inference
+      ↓
+Multiple predictions
+      ↓
+Mean prediction μ
+      +
+Prediction variation σ
+```
+
+Your previous design used Monte Carlo dropout for this purpose instead of a computationally expensive Gaussian process. Pasted text
+
+The output becomes:
+
+\[
+\mu(c)
+\]
+
+and
+
+\[
+\sigma(c)
+\]
+
+for each candidate.
+
+---
+
+# Phase 19 — Multi-Objective Utility Calculation
+
+Combine the relevant candidate properties into an overall computational utility.
+
+For example conceptually:
+
+\[
+U(c)
+=
+w_1 QED
++
+w_2 SA_{norm}
++
+w_3 Bioactivity
+\]
+
+Additional terms may later be incorporated if experimentally justified.
+
+The important issue is that the weights must be documented and ideally tested through sensitivity analysis rather than being treated as universal constants.
+
+---
+
+# Phase 20 — UCB Active Learning Acquisition
+
+Next calculate an acquisition score:
+
+\[
+\alpha_{UCB}(c)
+=
+\mu_U(c)
++
+\kappa\sigma_U(c)
+\]
+
+This balances:
+
+```text
+Exploitation
+→ candidates with high expected utility
+
+Exploration
+→ candidates about which the model is uncertain
+```
+
+Candidates are ranked according to the acquisition criterion.
+
+Then select:
+
+\[
+B_t \subset C_t
+\]
+
+where \(B_t\) is the prioritized feedback batch.
+
+---
+
+# Phase 21 — Dynamic Re-Encoding of Selected Candidates
+
+This phase is important for the “self-evolving” aspect.
+
+The selected candidates should be passed through the current encoder again:
+
+```text
+Selected candidate batch Bt
+        ↓
+Current encoder θE
+        ↓
+Updated embeddings
+        ↓
+zt
+```
+
+These embeddings represent where the newly selected chemical information lies in the current latent manifold.
+
+The system therefore does not simply store the selected candidates.
+
+It **re-ingests them into the representation-learning process**.
+
+---
+
+# Phase 22 — Closed-Loop Parameter Adaptation
+
+The model should then adapt to the prioritized candidate batch.
+
+The adaptation objective can conceptually combine:
+
+\[
+L_{adapt}
+=
+L_{task}
++
+\beta L_{latent}
++
+\lambda L_{EWC}
+\]
+
+where:
+
+### \(L_{task}\)
+
+Learns from prioritized candidate feedback.
+
+### \(L_{latent}\)
+
+Maintains the latent/variational representation.
+
+### \(L_{EWC}\)
+
+Protects parameters important for previously learned chemical knowledge.
+
+Your earlier implementation used a task term, a latent regularization term, and Fisher-weighted EWC during adaptation. Pasted text
+
+---
+
+# Phase 23 — EWC Parameter-Preservation Mechanism
+
+The EWC penalty should compare current parameters to the consolidated reference:
+
+\[
+L_{EWC}
+=
+\frac{\lambda}{2}
+\sum_j
+F_j
+(\theta_j-\theta_j^*)^2
+\]
+
+Interpretation:
+
+```text
+Large Fj
+→ parameter was important for baseline knowledge
+→ strongly resist modification
+
+Small Fj
+→ parameter less important
+→ greater adaptability permitted
+```
+
+This is what allows the system to balance:
+
+```text
+Adaptation
+        ↕
+Knowledge preservation
+```
+
+instead of simply fine-tuning until the original representation collapses.
+
+---
+
+# Phase 24 — Knowledge Consolidation After Each Cycle
+
+After adaptation, the system should record the updated state.
+
+For each cycle store:
+
+```text
+Cycle number
+Selected candidates
+Candidate scores
+Updated parameters
+Latent representations
+Task loss
+EWC loss
+Parameter drift
+Validity
+Novelty
+QED
+SA
+Acquisition score
+```
+
+Depending on the experimental design, the consolidated reference parameters and Fisher information may also be updated periodically.
+
+This creates a persistent computational history:
+
+```text
+D0 → Θ0
+      ↓
+Cycle 1 → Θ1
+      ↓
+Cycle 2 → Θ2
+      ↓
+Cycle 3 → Θ3
+      ↓
+...
+```
+
+---
+
+# Phase 25 — Execute Multiple Self-Evolution Cycles
+
+Your previous workflow proposed **3–5 closed-loop cycles**, which is reasonable for a demonstrative implementation. Pasted text
+
+Each complete cycle becomes:
+
+```text
+1. Sample latent space
+
+2. Generate candidate molecules
+
+3. Validate structures
+
+4. Evaluate QED / SA / biological relevance
+
+5. Estimate uncertainty
+
+6. Calculate utility
+
+7. Apply UCB acquisition
+
+8. Select feedback batch
+
+9. Dynamically re-encode selected molecules
+
+10. Adapt parameters
+
+11. Apply EWC preservation
+
+12. Update latent representation
+
+13. Consolidate knowledge
+
+14. Begin next cycle
+```
+
+So the entire loop is:
+
+```text
+Generate
+   ↓
+Evaluate
+   ↓
+Prioritize
+   ↓
+Re-encode
+   ↓
+Adapt
+   ↓
+Preserve
+   ↓
+Regenerate
+   ↺
+```
+
+---
+
+# Phase 26 — Experimental Control: With EWC vs Without EWC
+
+I strongly recommend adding this phase.
+
+Simply reporting that an EWC loss exists is weaker evidence than showing what happens when EWC is removed.
+
+Run:
+
+```text
+Experiment A
+Closed-loop adaptation WITHOUT EWC
+
+Experiment B
+Closed-loop adaptation WITH EWC
+```
+
+Then compare:
+
+```text
+Baseline molecular performance retention
+Latent representation drift
+Parameter drift
+Chemical validity
+Candidate diversity
+QED
+SA
+Biological relevance
+UCB utility
+```
+
+This directly tests whether the proposed parameter-preservation mechanism actually mitigates catastrophic forgetting.
+
+---
+
+# Phase 27 — Latent Manifold Evolution Analysis
+
+Because your invention centers strongly on a self-evolving latent representation, explicitly analyze:
+
+\[
+Z_0,Z_1,Z_2,\dots,Z_T
+\]
+
+Use dimensionality reduction only for visualization:
+
+```text
+PCA
+UMAP
+or t-SNE
+```
+
+Then compare:
+
+```text
+Baseline DrugBank molecules
+Generated candidates
+Selected candidates
+Rejected candidates
+Cycle 1 embeddings
+Cycle 2 embeddings
+Cycle 3 embeddings
+```
+
+The goal is to demonstrate:
+
+**adaptation without uncontrolled destruction of the original chemical representation.**
+
+---
+
+# Phase 28 — Catastrophic Forgetting Analysis
+
+Track retained performance on a fixed baseline DrugBank reference set.
+
+For example:
+
+```text
+Before adaptation:
+Evaluate D_reference
+
+After Cycle 1:
+Evaluate same D_reference
+
+After Cycle 2:
+Evaluate same D_reference
+
+After Cycle 3:
+Evaluate same D_reference
+```
+
+Compare EWC against no-EWC.
+
+That provides much stronger experimental evidence than simply stating that Fisher information was calculated.
+
+---
+
+# Phase 29 — XML Processing Performance Analysis
+
+Because your main architectural change is **MySQL → native XML processing**, I recommend adding a data-processing experiment specifically for this change.
+
+Measure:
+
+```text
+XML file size
+Number of <drug> records processed
+Valid structures extracted
+Invalid structures
+Extraction time
+Peak memory consumption
+Intermediate dataset size
+Processing throughput
+```
+
+Optionally compare with the previous MySQL approach:
+
+```text
+MySQL import/setup overhead
+vs.
+Streaming XML extraction
+```
+
+This gives you objective evidence for why XML processing was selected.
+
+---
+
+# Phase 30 — Final Evaluation Metrics
+
+Your results should be divided into categories.
+
+### Data-processing metrics
+
+```text
+Total XML drug records
+Valid SMILES
+Rejected records
+Processing speed
+Memory consumption
+```
+
+### Molecular generation metrics
+
+```text
+Validity
+Uniqueness
+Novelty
+Diversity
+```
+
+### Pharmacological metrics
+
+```text
+QED
+SA
+Biological relevance score
+```
+
+### Active-learning metrics
+
+```text
+Mean utility
+Mean uncertainty
+Mean UCB
+Top-K candidate quality
+```
+
+### Continual-learning metrics
+
+```text
+Parameter drift
+Baseline-retention performance
+EWC penalty
+Forgetting score
+```
+
+### Latent-space metrics
+
+```text
+Embedding displacement
+Cluster stability
+Selected-candidate movement
+Cycle-to-cycle evolution
+```
+
+---
+
+# Phase 31 — Output Artifacts
+
+Your previous workflow listed cycle results, Fisher evidence and latent-manifold evidence as major deliverables. Pasted text
+
+I would expand that into a more defensible artifact set:
+
+```text
+01_xml_dataset_summary
+02_extracted_molecular_dataset
+03_drug_target_associations
+04_valid_molecular_corpus
+05_baseline_model_metrics
+06_baseline_latent_embeddings
+07_fisher_parameter_importance
+08_generated_candidates_cycle_1
+09_generated_candidates_cycle_2
+10_generated_candidates_cycle_3
+11_ucb_candidate_rankings
+12_closed_loop_metrics
+13_parameter_drift_results
+14_ewc_vs_no_ewc_comparison
+15_latent_manifold_evolution
+16_catastrophic_forgetting_analysis
+```
+
+---
+
+# Your final XML-based architecture
+
+The complete architecture should now be presented like this:
+
+```text
+               DRUGBANK XSD
+                    │
+                    ▼
+             Schema Definition
+                    │
+                    ▼
+               DRUGBANK XML
+                    │
+                    ▼
+         Streaming XML Processing
+                    │
+        ┌───────────┴────────────┐
+        ▼                        ▼
+Molecular Structures      Biological Associations
+        │                        │
+        └───────────┬────────────┘
+                    ▼
+          Structured ML Dataset
+                    │
+                    ▼
+          Molecular Validation
+                    │
+                    ▼
+          3-D Graph Generation
+                    │
+                    ▼
+      Geometry-Aware Encoder
+                    │
+                    ▼
+         Latent Manifold Z
+                    │
+                    ▼
+          Molecular Decoder
+                    │
+                    ▼
+         Candidate Generation
+                    │
+                    ▼
+       Validity / Novelty Filter
+                    │
+                    ▼
+       In-Silico Evaluation
+           ┌────────┼────────┐
+           ▼        ▼        ▼
+          QED       SA   Bioactivity/
+                         Relevance
+                    │
+                    ▼
+       Uncertainty Estimation
+                    │
+                    ▼
+          Multi-Objective Utility
+                    │
+                    ▼
+          UCB Prioritization
+                    │
+                    ▼
+       Selected Feedback Batch
+                    │
+                    ▼
+        Dynamic Re-Encoding
+                    │
+                    ▼
+       Model Parameter Update
+                    │
+                    ▼
+        EWC Regularization
+        Θ* + Fisher Matrix
+                    │
+                    ▼
+        Knowledge Consolidation
+                    │
+                    ▼
+       Updated Latent Manifold
+                    │
+                    └───────────────┐
+                                    │
+                              Next Cycle
+                                    │
+                                    ▼
+                           Candidate Generation
+```
+
+## The biggest methodological improvement
+
+The key change should **not** be described simply as:
+
+> “We replaced MySQL with XML.”
+
+A better description for your implementation is:
+
+> **The revised implementation eliminates the intermediate relational database layer and directly processes the native DrugBank XML dataset using its accompanying XSD schema. Drug records are extracted through memory-efficient streaming, transformed into structured molecular and biological-association datasets, validated chemically, and subsequently converted into attributed three-dimensional molecular graphs for geometry-aware representation learning.**
+
+This makes the change sound like what it actually is: an **architectural improvement in the data-ingestion pipeline**, rather than just changing the file format.
+
+The scientific part of your original workflow—geometry-aware encoding, latent representation learning, in-silico scoring, UCB selection, Fisher information, EWC and multi-cycle self-evolution—remains intact.

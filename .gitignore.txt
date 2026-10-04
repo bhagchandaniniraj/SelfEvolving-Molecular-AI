@@ -2,3 +2,9 @@ Implementation/db/
 pptv3/
 rough/
 draftv2.docx
+Implementation/checkpoints/
+Implementation/data/
+Implementation/db/
+Implementation/models/
+Implementation/outputs/
+docx/
