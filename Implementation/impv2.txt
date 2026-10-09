@@ -27094,41 +27094,3883 @@ closed-loop continual parameter adaptation.
 
 ---
 
-# Phase 23 — EWC Parameter-Preservation Mechanism
+==============
 
-The EWC penalty should compare current parameters to the consolidated reference:
+PHASE 23 — CYCLE-2 CLOSED-LOOP PARAMETER ADAPTATION WITH FIXED-FISHER ELASTIC WEIGHT CONSOLIDATION
 
-\[
-L_{EWC}
-=
-\frac{\lambda}{2}
-\sum_j
+
+==================================================
+1. PHASE OBJECTIVE
+==================================================
+
+Phase 23 performs the second controlled continual-adaptation step of the molecular discovery system.
+
+The phase starts from the accepted Cycle-1 adapted state:
+
+K1
+
+
+and uses the finalized Cycle-2 computational feedback batch:
+
+B2
+
+
+to produce the next adapted model state:
+
+K2
+
+
+The primary parameter transition is:
+
+theta_E^(1)
+→
+theta_E^(2)
+
+
+and:
+
+theta_P^(1)
+→
+theta_P^(2)
+
+
+The generative decoder remains frozen:
+
+theta_D*
+→
+theta_D*
+
+
+Phase 23 must balance:
+
+new Cycle-2 surrogate-guided feedback learning
+
+with:
+
+preservation of previously consolidated molecular knowledge.
+
+
+==================================================
+2. INPUT STATE
+==================================================
+
+Phase 23 begins only after successful completion of Phase 22.
+
+
+Required authoritative inputs include:
+
+phase21_feedback_batch_B2.csv
+
+phase22_B2_K1_latent_matrix.csv
+
+phase22_pre_adaptation_state_manifest.json
+
+
+Expected:
+
+|B2| = 50
+
+
+The Phase-22 latent matrix represents:
+
+Z_B2^(K1)
+
+
+and must remain unchanged during adaptation.
+
+
+==================================================
+3. CURRENT PARAMETER STATE
+==================================================
+
+Initialize Phase 23 using:
+
+phase17_cycle1_adapted_encoder.pt
+
+and:
+
+phase17_cycle1_adapted_predictor.pt
+
+
+These represent:
+
+theta_E^(1)
+
+and:
+
+theta_P^(1)
+
+
+Do NOT initialize adaptation from the original Phase-12 baseline checkpoints.
+
+
+==================================================
+4. COMPONENTS ADAPTED
+==================================================
+
+Adapt:
+
+encoder theta_E^(1)
+
+predictor theta_P^(1)
+
+
+Keep frozen:
+
+decoder theta_D*
+
+
+The decoder is not part of the feedback-ranking adaptation objective.
+
+
+==================================================
+5. IMPORTANT DISTINCTION BETWEEN CURRENT PARAMETERS AND EWC REFERENCE
+==================================================
+
+The trainable model starts from:
+
+theta^(1)
+
+
+However, the existing fixed Fisher information was constructed in Phase 13 relative to the consolidated baseline parameter reference:
+
+theta*
+
+
+Therefore the EWC reference remains:
+
+theta*
+
+
+unless a future phase explicitly introduces:
+
+online EWC
+
+Fisher refresh
+
+or:
+
+new consolidated parameter anchors.
+
+
+Phase 23 must NOT silently redefine:
+
+theta* = theta^(1)
+
+
+because the existing Fisher matrices were not estimated relative to that new anchor.
+
+
+==================================================
+6. FIXED FISHER ARTIFACTS
+==================================================
+
+Reuse:
+
+phase13_encoder_fisher.pt
+
+phase13_predictor_fisher.pt
+
+phase13_fisher_parameter_reference.pt
+
+
+These remain immutable.
+
+
+Do NOT:
+
+recalculate Fisher
+
+average Fisher
+
+replace Fisher
+
+update Fisher
+
+re-anchor theta-star
+
+
+during Phase 23.
+
+
+==================================================
+7. EWC PARAMETER-PRESERVATION MECHANISM
+==================================================
+
+For model parameters:
+
+theta_j
+
+
+with frozen parameter reference:
+
+theta_j*
+
+
+and empirical Fisher importance:
+
 F_j
-(\theta_j-\theta_j^*)^2
-\]
 
-Interpretation:
 
-```text
-Large Fj
-→ parameter was important for baseline knowledge
-→ strongly resist modification
+define the raw EWC penalty:
 
-Small Fj
-→ parameter less important
-→ greater adaptability permitted
-```
+L_EWC_raw
+=
+1/2
+*
+sum_j
+F_j
+(
+theta_j
+-
+theta_j*
+)^2
 
-This is what allows the system to balance:
 
-```text
-Adaptation
-        ↕
-Knowledge preservation
-```
+The weighted contribution to the adaptation objective is:
 
-instead of simply fine-tuning until the original representation collapses.
+lambda_EWC
+*
+L_EWC_raw
 
+
+Equivalent notation is:
+
+L_EWC_weighted
+=
+lambda_EWC / 2
+*
+sum_j
+F_j
+(
+theta_j
+-
+theta_j*
+)^2
+
+
+==================================================
+8. INTERPRETATION OF FISHER IMPORTANCE
+==================================================
+
+Large F_j
+
+means:
+
+parameter j was estimated to be important for previously consolidated model behavior
+
+
+therefore:
+
+large deviation should be strongly penalized.
+
+
+Small F_j
+
+means:
+
+parameter j has lower estimated importance
+
+
+therefore:
+
+greater adaptation is permitted.
+
+
+Conceptually:
+
+Large F_j
+→
+strong knowledge-preservation pressure
+
+
+Small F_j
+→
+greater adaptation flexibility
+
+
+==================================================
+9. PURPOSE OF EWC
+==================================================
+
+EWC prevents Phase 23 from behaving like unconstrained fine-tuning.
+
+
+Without preservation:
+
+new feedback
+→
+parameter movement
+→
+possible catastrophic forgetting
+
+
+With EWC:
+
+new feedback
+→
+controlled parameter movement
+↕
+previous knowledge preservation
+
+
+==================================================
+10. FULL PHASE-23 ADAPTATION OBJECTIVE
+==================================================
+
+The recommended Phase-23 objective is:
+
+L_total
+=
+L_feedback
++
+lambda_EWC
+L_EWC
+
+
+where:
+
+L_feedback
+
+is the Cycle-2 feedback-learning objective
+
+
+and:
+
+L_EWC
+
+is the fixed-Fisher parameter-preservation penalty.
+
+
+==================================================
+11. DO NOT ADD A NEW LATENT LOSS YET
+==================================================
+
+Do NOT automatically use:
+
+L_total
+=
+L_feedback
++
+beta L_latent
++
+lambda L_EWC
+
+
+in the primary Phase-23 implementation.
+
+
+Reason:
+
+Cycle-1 adaptation was already established using:
+
+feedback learning
++
+EWC
+
+
+while latent drift was evaluated diagnostically.
+
+
+Adding:
+
+L_latent
+
+
+now would change the continual-learning objective between Cycle 1 and Cycle 2.
+
+
+Therefore the primary Cycle-2 methodology should preserve continuity.
+
+
+==================================================
+12. LATENT BEHAVIOR IS MEASURED, NOT DIRECTLY OPTIMIZED
+==================================================
+
+Phase 22 already produced:
+
+Z_B2^(K1)
+
+
+After adaptation, Phase 23 should calculate:
+
+Z_B2^(K2)
+
+
+Then measure:
+
+Delta Z_B2
+=
+Z_B2^(K2)
+-
+Z_B2^(K1)
+
+
+This provides direct evidence of representation evolution without adding an additional latent regularization objective.
+
+
+==================================================
+13. FEEDBACK SOURCE
+==================================================
+
+Phase 23 uses:
+
+B2
+
+
+from:
+
+phase21_feedback_batch_B2.csv
+
+
+B2 represents:
+
+prioritized computational feedback
+
+
+It does NOT represent:
+
+experimental activity labels
+
+measured binding affinity
+
+clinical outcomes
+
+validated biological hits
+
+
+==================================================
+14. FEEDBACK OBJECTIVE PRINCIPLE
+==================================================
+
+Do NOT convert Phase-21 scores into artificial experimental labels.
+
+
+Instead retain the established preference-learning methodology.
+
+
+Phase 21 provides an ordering over B2 through:
+
+expected utility
+
+primary UCB rank
+
+utility information
+
+and candidate-selection provenance.
+
+
+The adaptation objective should learn relative preference structure rather than treating surrogate scores as experimentally measured truth.
+
+
+==================================================
+15. PRIMARY FEEDBACK RANKING SOURCE
+==================================================
+
+For adaptation, preserve the accepted Phase-21 candidate ordering.
+
+
+Recommended primary ranking source:
+
+primary_UCB_rank
+
+
+with supporting quantities:
+
+primary_UCB_score
+
+expected_utility_mu
+
+biological_relevance_mean
+
+utility_uncertainty_sigma
+
+
+Because B2 was selected using primary UCB, the feedback objective should remain consistent with the acquisition stage.
+
+
+==================================================
+16. IMPORTANT RANKING POLICY
+==================================================
+
+Do NOT inspect Phase-23 training results and redefine the original B2 ordering.
+
+
+The Phase-21 ranking is frozen feedback provenance.
+
+
+During Phase 23:
+
+candidate preference targets remain fixed.
+
+
+==================================================
+17. FIXED TARGET IDENTITIES
+==================================================
+
+Phase 21 froze candidate-specific top-five target identities.
+
+
+Retain those exact target identities during Phase-23 adaptation.
+
+
+For each candidate:
+
+c_i
+
+
+retain:
+
+top_target_1_id
+...
+top_target_5_id
+
+
+Do NOT recompute a different top-five target set during each training step.
+
+
+==================================================
+18. ADAPTATION BIOLOGICAL RELEVANCE
+==================================================
+
+For candidate:
+
+c_i
+
+
+using current adapted predictor output during optimization:
+
+p_i,j
+
+
+extract the same frozen Phase-21 target indices.
+
+
+Define:
+
+B_i^adapt
+=
+mean prediction over the five frozen target identities
+
+
+This quantity remains differentiable with respect to:
+
+theta_E
+
+and:
+
+theta_P
+
+
+==================================================
+19. DIFFERENTIABLE ADAPTATION UTILITY
+==================================================
+
+For every candidate during adaptation:
+
+U_i^adapt
+=
+0.30 QED_i
++
+0.20 SAUtility_i
++
+0.50 B_i^adapt
+
+
+QED and SAUtility remain fixed.
+
+
+Only:
+
+B_i^adapt
+
+
+depends on model parameters.
+
+
+==================================================
+20. IMPORTANT UNCERTAINTY POLICY DURING TRAINING
+==================================================
+
+Do NOT run 30-pass MC-Dropout inside every optimization step.
+
+
+MC-Dropout is computationally unnecessary for the core ranking objective.
+
+
+During training:
+
+standard training-mode predictor dropout may operate normally.
+
+
+The full 30-pass MC-Dropout protocol should be reused after adaptation for evaluation if required.
+
+
+==================================================
+21. PREFERENCE-PAIR CONSTRUCTION
+==================================================
+
+Convert B2 into pairwise feedback preferences.
+
+
+For candidates:
+
+i
+
+and:
+
+j
+
+
+if Phase-21 ranking indicates:
+
+i preferred over j
+
+
+construct:
+
+(i, j)
+
+
+as a preference pair.
+
+
+==================================================
+22. MINIMUM RANK SEPARATION
+==================================================
+
+Avoid constructing many almost-equivalent preference pairs.
+
+
+Use the same minimum-rank-separation policy established during Cycle-1 adaptation.
+
+
+Do NOT silently introduce a new separation threshold for Cycle 2.
+
+
+If the exact Cycle-1 value is reused, record it explicitly in the configuration.
+
+
+==================================================
+23. WHY PAIRWISE FEEDBACK IS PREFERRED
+==================================================
+
+The feedback signal is based on surrogate ranking rather than experimentally calibrated numeric biological outcomes.
+
+
+Therefore preference learning is more defensible than direct regression onto:
+
+UCB values
+
+utility values
+
+or:
+
+biological relevance values
+
+
+as though they were true experimental labels.
+
+
+==================================================
+24. MOLECULE-LEVEL TRAIN / VALIDATION SPLIT
+==================================================
+
+Split B2 at the molecule level first.
+
+
+Then construct feedback pairs separately within:
+
+training molecules
+
+and:
+
+validation molecules
+
+
+Do NOT randomly split pairs after pair construction.
+
+
+==================================================
+25. WHY MOLECULE-LEVEL SPLITTING IS REQUIRED
+==================================================
+
+Pair-level splitting could result in:
+
+candidate A appearing in training
+
+and:
+
+candidate A appearing in validation
+
+
+through different pairs.
+
+
+That creates information leakage.
+
+
+Therefore:
+
+molecule split
+→
+pair construction
+
+
+is mandatory.
+
+
+==================================================
+26. SPLIT REPRODUCIBILITY
+==================================================
+
+Use:
+
+random seed = 42
+
+
+The candidate-level split must be reproducible.
+
+
+Save explicit:
+
+training candidate IDs
+
+validation candidate IDs
+
+
+==================================================
+27. PHASE-8 TEST-SET PROTECTION
+==================================================
+
+The original Phase-8 test set must NOT be used to choose:
+
+lambda_EWC
+
+learning rate
+
+epochs
+
+margin
+
+pair-separation threshold
+
+early stopping
+
+or:
+
+Cycle-2 adaptation policy.
+
+
+==================================================
+28. MARGIN-RANKING OBJECTIVE
+==================================================
+
+For a preferred candidate:
+
+i
+
+
+and lower-ranked candidate:
+
+j
+
+
+require:
+
+U_i^adapt
+>
+U_j^adapt
+
+
+with margin:
+
+m
+
+
+A suitable pairwise ranking loss is:
+
+L_pair
+=
+max(
+0,
+m
+-
+(
+U_i^adapt
+-
+U_j^adapt
+)
+)
+
+
+The batch feedback loss is the weighted mean over training pairs.
+
+
+==================================================
+29. PAIR WEIGHTING
+==================================================
+
+Reuse the accepted Cycle-1 pair-weighting policy.
+
+
+Possible weights reflect:
+
+rank separation
+
+or:
+
+utility separation
+
+
+but the method must remain fixed before training.
+
+
+Do not change pair weights post hoc based on Phase-23 performance.
+
+
+==================================================
+30. FEEDBACK LOSS
+==================================================
+
+Define:
+
+L_feedback
+=
+weighted mean pairwise margin-ranking loss
+
+
+over Cycle-2 training pairs.
+
+
+==================================================
+31. ENCODER EWC
+==================================================
+
+For encoder parameter:
+
+theta_E,j
+
+
+define:
+
+L_EWC,E
+=
+1/2
+*
+sum_j
+F_E,j
+(
+theta_E,j
+-
+theta_E,j*
+)^2
+
+
+==================================================
+32. PREDICTOR EWC
+==================================================
+
+For predictor parameter:
+
+theta_P,j
+
+
+define:
+
+L_EWC,P
+=
+1/2
+*
+sum_j
+F_P,j
+(
+theta_P,j
+-
+theta_P,j*
+)^2
+
+
+==================================================
+33. TOTAL EWC
+==================================================
+
+Define:
+
+L_EWC
+=
+L_EWC,E
++
+L_EWC,P
+
+
+Then:
+
+L_total
+=
+L_feedback
++
+lambda_EWC
+L_EWC
+
+
+==================================================
+34. EWC NORMALIZATION
+==================================================
+
+Retain both:
+
+raw Fisher-weighted drift
+
+and:
+
+normalized Fisher-weighted drift
+
+
+for audit purposes.
+
+
+Normalization must follow the same policy used during Cycle-1 adaptation.
+
+
+==================================================
+35. PRIMARY EWC STRENGTH
+==================================================
+
+To maintain continuity with the accepted Cycle-1 adaptation, the preferred Cycle-2 policy is to reuse the previously accepted:
+
+lambda_EWC = 1000
+
+
+as the primary fixed value.
+
+
+Do NOT re-optimize lambda simply because Cycle 2 results are available unless a separate predefined hyperparameter-selection protocol is explicitly approved.
+
+
+==================================================
+36. WHY REUSING LAMBDA IS STRONGER
+==================================================
+
+Reusing the accepted Cycle-1 preservation coefficient avoids:
+
+post-hoc Cycle-2 tuning
+
+objective drift
+
+and:
+
+using B2 to optimize its own protection strength.
+
+
+It provides a cleaner cross-cycle methodological comparison.
+
+
+==================================================
+37. OPTIMIZER
+==================================================
+
+Use:
+
+AdamW
+
+
+for adaptable encoder and predictor parameters.
+
+
+==================================================
+38. LEARNING RATE
+==================================================
+
+Reuse the conservative Cycle-1 adaptation learning rate:
+
+learning rate = 1e-4
+
+
+unless there is a documented reason to change it before training.
+
+
+==================================================
+39. MAXIMUM EPOCHS
+==================================================
+
+Reuse:
+
+maximum epochs = 20
+
+
+from the established continual-adaptation protocol.
+
+
+==================================================
+40. EARLY STOPPING
+==================================================
+
+Use feedback-validation performance for early stopping.
+
+
+Do NOT use:
+
+Phase-8 test performance
+
+B2 full-batch performance
+
+or:
+
+post-adaptation Cycle-2 generation quality
+
+
+to choose the stopping epoch.
+
+
+==================================================
+41. BEST MODEL SELECTION
+==================================================
+
+The selected checkpoint should balance:
+
+feedback improvement
+
+and:
+
+knowledge retention
+
+
+At minimum require:
+
+validation feedback loss improvement
+
+no severe retention violation
+
+finite parameters
+
+finite gradients
+
+valid checkpoint reloadability
+
+
+==================================================
+42. CURRENT STATE INITIALIZATION
+==================================================
+
+Before training:
+
+theta_E
+=
+theta_E^(1)
+
+
+theta_P
+=
+theta_P^(1)
+
+
+After successful adaptation:
+
+theta_E
+=
+theta_E^(2)
+
+
+theta_P
+=
+theta_P^(2)
+
+
+==================================================
+43. BASELINE REFERENCE DOES NOT CHANGE
+==================================================
+
+Even though training starts from K1:
+
+EWC distance remains evaluated relative to:
+
+theta*
+
+
+from Phase 13.
+
+
+This preserves consistency with the Fisher importance estimate.
+
+
+==================================================
+44. GRADIENT FLOW
+==================================================
+
+The differentiable pathway is:
+
+B2 molecular graph
+
+        ↓
+
+adaptable theta_E
+
+        ↓
+
+deterministic mu
+
+        ↓
+
+frozen Phase-12 latent normalization
+
+        ↓
+
+adaptable theta_P
+
+        ↓
+
+130 target logits
+
+        ↓
+
+sigmoid target-association probabilities
+
+        ↓
+
+extract frozen Phase-21 top-five targets
+
+        ↓
+
+B_i^adapt
+
+        ↓
+
+U_i^adapt
+
+        ↓
+
+preference-ranking loss
+
+        +
+
+fixed-Fisher EWC
+
+        ↓
+
+gradient update
+
+
+==================================================
+45. DETERMINISTIC ENCODER POLICY DURING ADAPTATION
+==================================================
+
+Use:
+
+z = mu
+
+
+during adaptation.
+
+
+Do NOT use variational latent sampling:
+
+z
+=
+mu
++
+sigma epsilon
+
+
+inside the feedback objective.
+
+
+==================================================
+46. WHY DETERMINISTIC MU IS REQUIRED
+==================================================
+
+The ranking objective should reflect:
+
+parameter learning
+
+
+not:
+
+variational sampling noise.
+
+
+This also maintains consistency with:
+
+Phase 17
+
+Phase 21
+
+Phase 22
+
+
+==================================================
+47. FROZEN LATENT NORMALIZATION
+==================================================
+
+Reuse:
+
+phase12_predictor_latent_normalization.json
+
+
+No new latent normalization should be fitted on:
+
+B2
+
+
+==================================================
+48. FROZEN TARGET VOCABULARY
+==================================================
+
+Reuse the exact:
+
+130-target Phase-12 vocabulary.
+
+
+Do not:
+
+add target classes
+
+remove target classes
+
+reorder target classes
+
+retrain target vocabulary
+
+
+==================================================
+49. DECODER POLICY
+==================================================
+
+The decoder:
+
+theta_D*
+
+
+must remain frozen.
+
+
+Phase 23 performs no molecular generation.
+
+
+==================================================
+50. PRE-ADAPTATION CHECKPOINT HASHING
+==================================================
+
+Before adaptation, record SHA-256 hashes for:
+
+theta_E*
+
+theta_D*
+
+theta_P*
+
+theta_E^(1)
+
+theta_P^(1)
+
+F_E
+
+F_P
+
+Phase-13 parameter reference
+
+Phase-21 B2
+
+Phase-22 Z_B2^(K1)
+
+
+==================================================
+51. TRAINING HISTORY
+==================================================
+
+For every epoch save:
+
+epoch
+
+training feedback loss
+
+validation feedback loss
+
+training pair accuracy
+
+validation pair accuracy
+
+encoder raw EWC
+
+predictor raw EWC
+
+total raw EWC
+
+encoder normalized EWC
+
+predictor normalized EWC
+
+total normalized EWC
+
+lambda_EWC
+
+total training loss
+
+total validation loss
+
+encoder parameter L2 drift
+
+predictor parameter L2 drift
+
+
+==================================================
+52. GRADIENT HEALTH
+==================================================
+
+During optimization verify:
+
+loss finite
+
+encoder gradients finite
+
+predictor gradients finite
+
+parameter values finite
+
+
+If any non-finite value occurs:
+
+stop adaptation
+
+record failure
+
+do not save K2 as accepted.
+
+
+==================================================
+53. ADAPTED CHECKPOINTS
+==================================================
+
+Recommended outputs:
+
+phase23_cycle2_adapted_encoder.pt
+
+phase23_cycle2_adapted_predictor.pt
+
+
+These represent:
+
+theta_E^(2)
+
+theta_P^(2)
+
+
+==================================================
+54. PARAMETER-DRIFT ANALYSIS
+==================================================
+
+For every adapted parameter calculate:
+
+mean absolute change
+
+maximum absolute change
+
+L1 change
+
+L2 change
+
+relative L2 change
+
+mean Fisher importance
+
+maximum Fisher importance
+
+raw Fisher-weighted drift
+
+normalized Fisher-weighted drift
+
+
+==================================================
+55. PARAMETER-DRIFT REFERENCE
+==================================================
+
+Report parameter change relative to both:
+
+immediate initialization:
+
+theta^(1)
+
+
+and:
+
+consolidated baseline:
+
+theta*
+
+
+These answer different questions.
+
+
+Relative to theta^(1):
+
+How much did Cycle 2 adaptation change K1?
+
+
+Relative to theta*:
+
+How far has the model moved from the consolidated baseline?
+
+
+==================================================
+56. KNOWLEDGE-RETENTION REFERENCE
+==================================================
+
+Reuse the fixed Phase-13 reference population.
+
+
+Do NOT construct a new retention set from B2.
+
+
+This permits longitudinal comparison across adaptation cycles.
+
+
+==================================================
+57. REFERENCE LATENT DRIFT
+==================================================
+
+For each fixed reference molecule compare:
+
+baseline/reference latent
+
+against:
+
+K2 latent
+
+
+and where relevant also compare:
+
+K1 latent
+→
+K2 latent
+
+
+Recommended quantities:
+
+mean reference latent drift
+
+median reference latent drift
+
+maximum reference latent drift
+
+
+==================================================
+58. REFERENCE PREDICTION DRIFT
+==================================================
+
+On the fixed reference population calculate:
+
+mean absolute 130-target prediction drift
+
+maximum prediction drift
+
+top-target identity change rate
+
+
+Compare:
+
+K1
+→
+K2
+
+
+==================================================
+59. B2 POST-ADAPTATION RE-ENCODING
+==================================================
+
+After selecting the accepted K2 checkpoint, re-encode exactly the same B2 molecules.
+
+
+Calculate:
+
+Z_B2^(K2)
+
+
+using:
+
+theta_E^(2)
+
+
+and:
+
+z = mu
+
+
+==================================================
+60. B2 LATENT EVOLUTION
+==================================================
+
+For candidate:
+
+i
+
+
+calculate:
+
+Delta z_i
+=
+z_i^(K2)
+-
+z_i^(K1)
+
+
+and:
+
+latent_drift_i
+=
+||
+z_i^(K2)
+-
+z_i^(K1)
+||_2
+
+
+==================================================
+61. B2 LATENT-DRIFT SUMMARY
+==================================================
+
+Report:
+
+mean B2 latent drift
+
+median B2 latent drift
+
+maximum B2 latent drift
+
+minimum B2 latent drift
+
+B2 centroid shift
+
+
+==================================================
+62. WHY B2 LATENT EVOLUTION IS IMPORTANT
+==================================================
+
+Phase 22 established:
+
+Z_B2^(K1)
+
+
+Phase 23 produces:
+
+Z_B2^(K2)
+
+
+Therefore the pipeline can directly demonstrate:
+
+selected Cycle-2 feedback
+→
+parameter adaptation
+→
+representation change
+
+
+rather than merely asserting that the model evolved.
+
+
+==================================================
+63. FEEDBACK PRE/POST EVALUATION
+==================================================
+
+For every B2 candidate calculate:
+
+pre-adaptation biological relevance
+
+post-adaptation biological relevance
+
+biological relevance change
+
+pre-adaptation deterministic utility
+
+post-adaptation deterministic utility
+
+utility change
+
+pre-adaptation top target
+
+post-adaptation top target
+
+top-target changed
+
+
+==================================================
+64. IMPORTANT EVALUATION DISTINCTION
+==================================================
+
+Training preference uses the frozen Phase-21 feedback ordering.
+
+
+Post-adaptation scoring measures:
+
+what changed
+
+
+It must not retroactively redefine:
+
+what the model was trained to prefer.
+
+
+==================================================
+65. RANKING RETENTION
+==================================================
+
+Compare Phase-21 ordering against post-adaptation deterministic utility ranking.
+
+
+Recommended metrics:
+
+Spearman correlation
+
+Kendall correlation
+
+Top-10 overlap
+
+Top-20 overlap
+
+Top-50 overlap
+
+
+==================================================
+66. FEEDBACK PERFORMANCE
+==================================================
+
+Report:
+
+training pair accuracy before adaptation
+
+training pair accuracy after adaptation
+
+validation pair accuracy before adaptation
+
+validation pair accuracy after adaptation
+
+
+Also report:
+
+training feedback loss before / after
+
+validation feedback loss before / after
+
+
+==================================================
+67. DO NOT REQUIRE PERFECT PAIR ACCURACY
+==================================================
+
+The objective is controlled adaptation.
+
+
+Perfect training accuracy may indicate:
+
+overfitting
+
+excessive parameter movement
+
+or:
+
+loss of previous knowledge.
+
+
+Therefore adaptation quality must consider:
+
+feedback improvement
+
+and:
+
+knowledge retention.
+
+
+==================================================
+68. SEVERE-DRIFT POLICY
+==================================================
+
+Use the same accepted knowledge-retention criteria from the previous adaptation cycle wherever available.
+
+
+Do NOT invent a new favorable threshold after examining Cycle-2 results.
+
+
+If a severe-drift condition is triggered:
+
+K2 must not automatically be accepted.
+
+
+==================================================
+69. CHECKPOINT ACCEPTANCE
+==================================================
+
+The selected K2 state should require:
+
+finite training
+
+valid checkpoint reload
+
+feedback objective improvement or defensible preservation
+
+acceptable validation behavior
+
+no severe knowledge-retention violation
+
+controlled EWC drift
+
+baseline files unchanged
+
+
+==================================================
+70. K0 IMMUTABILITY
+==================================================
+
+Phase 23 must never overwrite:
+
+phase12_thetaE_baseline_encoder.pt
+
+phase12_thetaD_baseline_decoder.pt
+
+phase12_best_baseline_predictor.pt
+
+
+These remain the frozen baseline reference.
+
+
+==================================================
+71. K1 IMMUTABILITY
+==================================================
+
+Also do not overwrite:
+
+phase17_cycle1_adapted_encoder.pt
+
+phase17_cycle1_adapted_predictor.pt
+
+
+K1 must remain recoverable.
+
+
+Phase 23 creates new K2 checkpoint files.
+
+
+==================================================
+72. FISHER IMMUTABILITY
+==================================================
+
+Require pre/post SHA-256 equality for:
+
+phase13_encoder_fisher.pt
+
+phase13_predictor_fisher.pt
+
+phase13_fisher_parameter_reference.pt
+
+
+==================================================
+73. PHASE-22 SNAPSHOT IMMUTABILITY
+==================================================
+
+Require:
+
+phase22_B2_K1_latent_matrix.csv
+
+
+to remain unchanged.
+
+
+Its SHA-256 before and after adaptation must match.
+
+
+==================================================
+74. RECOMMENDED OUTPUT FILES
+==================================================
+
+phase23_adaptation_config.json
+
+phase23_feedback_candidate_manifest.csv
+
+phase23_feedback_train_candidates.csv
+
+phase23_feedback_validation_candidates.csv
+
+phase23_feedback_pairs.csv
+
+phase23_training_history.csv
+
+phase23_cycle2_adapted_encoder.pt
+
+phase23_cycle2_adapted_predictor.pt
+
+phase23_parameter_drift.csv
+
+phase23_fisher_weighted_drift.csv
+
+phase23_reference_latent_drift.csv
+
+phase23_reference_prediction_drift.csv
+
+phase23_B2_pre_post_scores.csv
+
+phase23_B2_K2_latent_matrix.csv
+
+phase23_B2_latent_evolution.csv
+
+phase23_B2_latent_evolution_summary.csv
+
+phase23_feedback_ranking_comparison.csv
+
+phase23_knowledge_retention_summary.csv
+
+phase23_checkpoint_hash_manifest.csv
+
+phase23_adaptation_qc_summary.csv
+
+phase23_adaptation_qc_summary.json
+
+
+==================================================
+75. ADAPTATION CONFIGURATION
+==================================================
+
+Record:
+
+phase = 23
+
+cycle = 2
+
+random seed = 42
+
+B2 source file
+
+B2 size = 50
+
+Phase-22 latent snapshot source
+
+graph schema source
+
+Phase-9 normalization source
+
+Phase-12 latent normalization source
+
+Phase-12 target vocabulary source
+
+initial encoder = theta_E^(1)
+
+initial predictor = theta_P^(1)
+
+decoder = theta_D* frozen
+
+encoder Fisher source
+
+predictor Fisher source
+
+theta-star source
+
+feedback ranking source
+
+pair construction policy
+
+minimum rank separation
+
+ranking margin
+
+pair weighting policy
+
+feedback split policy
+
+optimizer = AdamW
+
+learning rate = 1e-4
+
+maximum epochs = 20
+
+lambda_EWC = 1000
+
+early stopping policy
+
+test-set use = False
+
+
+==================================================
+76. PHASE-23 COMPLETION CRITERIA
+==================================================
+
+Phase 23 is complete only when:
+
+1. Phase 22 PASS state is verified.
+
+2. B2 = 50 is loaded unchanged.
+
+3. Phase-21 feedback ordering is preserved.
+
+4. Phase-21 top-five target identities are preserved.
+
+5. Phase-22 Z_B2^(K1) snapshot is preserved.
+
+6. Exact Phase-7 graph representation is reused.
+
+7. Exact Phase-9 normalization is reused.
+
+8. Exact Phase-12 latent normalization is reused.
+
+9. Exact Phase-12 target vocabulary is reused.
+
+10. theta_E^(1) loads successfully.
+
+11. theta_P^(1) loads successfully.
+
+12. theta_D* remains frozen.
+
+13. Fixed Phase-13 encoder Fisher loads successfully.
+
+14. Fixed Phase-13 predictor Fisher loads successfully.
+
+15. Fixed theta-star reference loads successfully.
+
+16. Fisher parameter names align exactly with trainable parameter names.
+
+17. Fisher tensor dimensions align exactly.
+
+18. Molecule-level feedback train/validation split is constructed.
+
+19. No molecule overlaps train and validation subsets.
+
+20. Preference pairs are constructed after molecule splitting.
+
+21. Pair ranking source is frozen.
+
+22. Minimum rank-separation policy is enforced.
+
+23. Pair weighting policy is recorded.
+
+24. Deterministic z = mu is used.
+
+25. B2 feedback utility remains 0.30 / 0.20 / 0.50.
+
+26. Fixed Phase-21 target identities are used during training.
+
+27. Encoder and predictor receive gradients.
+
+28. Decoder receives no gradients.
+
+29. Training losses remain finite.
+
+30. Gradients remain finite.
+
+31. Parameter values remain finite.
+
+32. EWC is calculated from fixed Phase-13 Fisher.
+
+33. EWC anchor remains theta-star.
+
+34. Fisher is not recalculated.
+
+35. lambda_EWC is explicitly recorded.
+
+36. AdamW is used.
+
+37. Learning rate is explicitly recorded.
+
+38. Maximum epochs are explicitly recorded.
+
+39. Early stopping uses feedback validation only.
+
+40. Phase-8 test set is not used for tuning.
+
+41. Best accepted encoder is saved as theta_E^(2).
+
+42. Best accepted predictor is saved as theta_P^(2).
+
+43. K0 checkpoints remain unchanged.
+
+44. K1 checkpoints remain unchanged.
+
+45. Fisher artifacts remain unchanged.
+
+46. Phase-22 pre-adaptation snapshot remains unchanged.
+
+47. Encoder parameter drift is quantified.
+
+48. Predictor parameter drift is quantified.
+
+49. Fisher-weighted drift is quantified.
+
+50. Fixed-reference latent drift is quantified.
+
+51. Fixed-reference prediction drift is quantified.
+
+52. B2 is re-encoded under theta_E^(2).
+
+53. Z_B2^(K2) is saved.
+
+54. B2 K1-to-K2 latent drift is calculated.
+
+55. B2 centroid shift is calculated.
+
+56. B2 pre/post scores are calculated.
+
+57. Ranking retention is quantified.
+
+58. Feedback train performance is evaluated.
+
+59. Feedback validation performance is evaluated.
+
+60. Severe drift is evaluated.
+
+61. K2 acceptance decision is explicitly recorded.
+
+62. QC summary is saved.
+
+63. K2 is ready for the next closed-loop generation cycle.
+
+
+==================================================
+77. UPDATED KNOWLEDGE STATE
+==================================================
+
+After successful Phase 23:
+
+K2
+=
+{
+theta_E^(2),
+theta_D*,
+theta_P^(2),
+F_E,
+F_P,
+theta*,
+Z0,
+S1,
+B2,
+Z_B2^(K1),
+Z_B2^(K2)
+}
+
+
+where Fisher information remains the fixed previously consolidated reference.
+
+
+==================================================
+78. WHAT PHASE 23 PROVES
+==================================================
+
+A successful Phase 23 demonstrates:
+
+a second controlled computational adaptation step
+
+
+because the system has completed:
+
+Cycle-2 generation
+
+        ↓
+
+chemical screening
+
+        ↓
+
+surrogate evaluation
+
+        ↓
+
+uncertainty-aware acquisition
+
+        ↓
+
+diversity-aware feedback selection
+
+        ↓
+
+pre-adaptation re-encoding
+
+        ↓
+
+EWC-constrained parameter adaptation
+
+        ↓
+
+post-adaptation representation measurement
+
+
+==================================================
+79. APPROPRIATE SCIENTIFIC CLAIM
+==================================================
+
+It is appropriate to state:
+
+“The encoder and biological-relevance predictor were continually adapted using the prioritized Cycle-2 computational feedback batch under fixed empirical-Fisher EWC constraints.”
+
+
+It is appropriate to state:
+
+“EWC restricted movement of parameters previously identified as important to the consolidated baseline knowledge state.”
+
+
+It is appropriate to state:
+
+“Pre- and post-adaptation latent representations of B2 were compared to quantify representation change associated with the Cycle-2 adaptation step.”
+
+
+==================================================
+80. CLAIMS THAT SHOULD NOT BE MADE
+==================================================
+
+Do not state:
+
+“EWC guarantees no forgetting.”
+
+
+Do not state:
+
+“Fisher importance perfectly measures parameter importance.”
+
+
+Do not state:
+
+“B2 provides experimental biological feedback.”
+
+
+Do not state:
+
+“Phase 23 proves therapeutic improvement.”
+
+
+Do not state:
+
+“Latent movement proves improved biological activity.”
+
+
+Do not state:
+
+“EWC guarantees optimal stability-plasticity balance.”
+
+
+==================================================
+81. FULL PHASE-23 DATA FLOW
+==================================================
+
+PHASE-21 B2
+
+B2 = 50
+
+        +
+
+PHASE-22 PRE-ADAPTATION SNAPSHOT
+
+Z_B2^(K1)
+
+        +
+
+CURRENT K1 PARAMETERS
+
+theta_E^(1)
+
+theta_P^(1)
+
+        +
+
+FIXED PHASE-13 CONSOLIDATION
+
+F_E
+
+F_P
+
+theta*
+
+        ↓
+
+MOLECULE-LEVEL TRAIN / VALIDATION SPLIT
+
+        ↓
+
+PAIRWISE FEEDBACK CONSTRUCTION
+
+        ↓
+
+EXACT PHASE-7 GRAPH REPRESENTATION
+
+        ↓
+
+ADAPTABLE ENCODER
+
+theta_E
+
+        ↓
+
+DETERMINISTIC
+
+z = mu
+
+        ↓
+
+FROZEN PHASE-12 LATENT NORMALIZATION
+
+        ↓
+
+ADAPTABLE PREDICTOR
+
+theta_P
+
+        ↓
+
+130 TARGET-ASSOCIATION PROBABILITIES
+
+        ↓
+
+EXTRACT FROZEN PHASE-21 TOP-5 TARGETS
+
+        ↓
+
+B_i^adapt
+
+        ↓
+
+U_i^adapt
+=
+0.30 QED
++
+0.20 SAUtility
++
+0.50 B_i^adapt
+
+        ↓
+
+PAIRWISE MARGIN-RANKING LOSS
+
+        +
+
+FIXED-FISHER EWC
+
+        ↓
+
+L_total
+=
+L_feedback
++
+lambda_EWC L_EWC
+
+        ↓
+
+AdamW
+
+LR = 1e-4
+
+        ↓
+
+VALIDATION / EARLY STOPPING
+
+        ↓
+
+SELECT ACCEPTED K2 CHECKPOINT
+
+        ↓
+
+theta_E^(2)
+
+theta_P^(2)
+
+        ↓
+
+REFERENCE RETENTION ANALYSIS
+
+        +
+
+B2 POST-ADAPTATION RE-ENCODING
+
+        ↓
+
+Z_B2^(K2)
+
+        ↓
+
+COMPARE
+
+Z_B2^(K1)
+vs
+Z_B2^(K2)
+
+        ↓
+
+MEASURE PARAMETER + LATENT + PREDICTION DRIFT
+
+        ↓
+
+K2 ACCEPTANCE QC
+
+        ↓
+
+PHASE 23 PASS
+
+
+==================================================
+82. FINAL PHASE-23 PRINCIPLE
+==================================================
+
+Phase 23 answers:
+
+“Can the current K1 encoder and predictor incorporate the prioritized Cycle-2 computational feedback while limiting destructive movement of parameters important to previously consolidated knowledge?”
+
+
+The core optimization problem is:
+
+ADAPTATION
+
+through:
+
+L_feedback
+
+
+balanced against:
+
+KNOWLEDGE PRESERVATION
+
+through:
+
+lambda_EWC L_EWC
+
+
+Therefore the appropriate Phase-23 identity is:
+
+CYCLE-2 CLOSED-LOOP CONTINUAL PARAMETER ADAPTATION WITH FIXED-FISHER EWC
+
+
+not merely:
+
+EWC parameter preservation.
+
+
+EWC is the preservation mechanism.
+
+The feedback-ranking objective provides the adaptation pressure.
+
+Together they produce the stability-plasticity mechanism required for the next accepted knowledge state:
+
+K1
+→
+K2.
+
+------------------------------
+PHASE 23B — STABILITY–PLASTICITY DIAGNOSTIC AND PROSPECTIVE ADAPTATION-POLICY CALIBRATION
+
+
+==================================================
+1. PHASE OBJECTIVE
+==================================================
+
+Phase 23B investigates why the Cycle-2 adaptation attempted in Phase 23 improved several continuous feedback metrics but failed the predefined training-ranking retention guardrail.
+
+Phase 23B is a:
+
+DIAGNOSTIC
+
+and:
+
+POLICY-CALIBRATION
+
+phase.
+
+It is NOT another parameter-adaptation phase.
+
+
+No model parameters are updated in Phase 23B.
+
+
+The primary question is:
+
+“Did Phase-23 adaptation fail because the model underwent unacceptable forgetting, or because the discrete training-ranking guardrail was overly sensitive relative to the continuous adaptation evidence?”
+
+
+==================================================
+2. CURRENT ACCEPTED MODEL STATE
+==================================================
+
+Phase 23 ended with:
+
+selected_epoch = 0
+
+
+and:
+
+final_adaptation_accepted = False
+
+
+Therefore the accepted knowledge state remains:
+
+K1
+
+
+and NOT:
+
+K2.
+
+
+The authoritative encoder remains:
+
+theta_E^(1)
+
+
+The authoritative predictor remains:
+
+theta_P^(1)
+
+
+The decoder remains:
+
+theta_D*
+
+
+==================================================
+3. PHASE-23 OBSERVED OUTCOME
+==================================================
+
+The Phase-23 pre-adaptation K1 benchmark was approximately:
+
+Training pair accuracy:
+
+0.891854
+
+
+Validation pair accuracy:
+
+0.953488
+
+
+Training feedback loss:
+
+0.685269
+
+
+Validation feedback loss:
+
+0.675113
+
+
+Phase-23 adapted epochs reduced the feedback loss.
+
+For example:
+
+Epoch 1 validation loss:
+
+0.671713
+
+
+Epoch 2:
+
+0.669361
+
+
+Epoch 3:
+
+0.663943
+
+
+Epoch 7:
+
+0.653335
+
+
+Validation margin accuracy also increased above the K1 baseline.
+
+However, adapted checkpoints did not satisfy the predefined:
+
+maximum training accuracy drop = 0.02
+
+
+guardrail.
+
+Therefore no adapted model was accepted.
+
+
+==================================================
+4. WHY PHASE 23B IS NEEDED
+==================================================
+
+The Phase-23 outcome indicates a possible stability–plasticity conflict.
+
+Adaptation produced:
+
+lower continuous ranking loss
+
+and:
+
+improved validation margin structure
+
+
+but simultaneously reduced:
+
+discrete training pair accuracy.
+
+
+This requires investigation before changing the acceptance policy.
+
+
+==================================================
+5. PHASE 23B MUST NOT RETROACTIVELY ACCEPT AN EPOCH
+==================================================
+
+Phase 23B must NOT simply declare:
+
+Epoch 1 accepted
+
+
+because Epoch 1 narrowly missed the original guardrail.
+
+
+That would constitute post-hoc checkpoint acceptance.
+
+
+Instead:
+
+Phase 23 remains frozen as:
+
+K1 RETAINED.
+
+
+Phase 23B develops and freezes a new policy that could be used in a subsequent adaptation attempt.
+
+
+==================================================
+6. PHASE 23B MODEL-UPDATE POLICY
+==================================================
+
+During Phase 23B:
+
+optimizer = NONE
+
+backward() = NONE
+
+gradient updates = NONE
+
+encoder update = NONE
+
+predictor update = NONE
+
+decoder update = NONE
+
+Fisher recalculation = NONE
+
+
+Therefore:
+
+Delta theta = 0.
+
+
+==================================================
+7. REQUIRED INPUTS
+==================================================
+
+Primary Phase-23 outputs:
+
+phase23_training_history.csv
+
+phase23_checkpoint_candidate_audit.csv
+
+phase23_feedback_pairs.csv
+
+phase23_feedback_train_candidates.csv
+
+phase23_feedback_validation_candidates.csv
+
+phase23_knowledge_retention_summary.csv
+
+phase23_adaptation_qc_summary.json
+
+
+Frozen feedback:
+
+phase21_feedback_batch_B2.csv
+
+
+Frozen pre-adaptation representation:
+
+phase22_B2_K1_latent_matrix.csv
+
+
+Frozen model state:
+
+phase17_cycle1_adapted_encoder.pt
+
+phase17_cycle1_adapted_predictor.pt
+
+
+Frozen EWC artifacts:
+
+phase13_encoder_fisher.pt
+
+phase13_predictor_fisher.pt
+
+phase13_fisher_parameter_reference.pt
+
+
+==================================================
+8. CHECKPOINTS TO ANALYZE
+==================================================
+
+Analyze:
+
+Epoch 0
+
+and every Phase-23 trained epoch:
+
+Epoch 1
+Epoch 2
+...
+Epoch N
+
+
+where N is the final trained epoch prior to early stopping.
+
+
+Epoch 0 represents:
+
+K1 baseline.
+
+
+==================================================
+9. DO NOT RE-RUN ADAPTATION
+==================================================
+
+Phase 23B should analyze the recorded Phase-23 trajectory.
+
+It should not generate a new optimization trajectory.
+
+
+If exact epoch parameter states were not saved to disk, Phase 23B must use the available Phase-23 metric history and checkpoint audit rather than reconstructing hypothetical parameter states.
+
+
+==================================================
+10. TRAINING ACCURACY DROP
+==================================================
+
+For every epoch e calculate:
+
+Delta A_train(e)
+=
+A_train(K1)
+-
+A_train(e)
+
+
+For Epoch 1:
+
+approximately:
+
+0.891854
+-
+0.867978
+=
+0.023876
+
+
+or approximately:
+
+2.39 percentage points.
+
+
+This is only slightly above the original:
+
+2.00 percentage-point
+
+
+guardrail.
+
+
+==================================================
+11. VALIDATION ACCURACY DROP
+==================================================
+
+Calculate:
+
+Delta A_val(e)
+=
+A_val(K1)
+-
+A_val(e)
+
+
+Because validation consists of a small discrete pair set, also convert the difference into:
+
+number of additional misordered pairs.
+
+
+This is more interpretable than accuracy alone.
+
+
+==================================================
+12. TRAINING PAIR RESOLUTION
+==================================================
+
+For:
+
+N_train_pairs
+
+
+the resolution of training pair accuracy is:
+
+1 / N_train_pairs.
+
+
+For the observed Phase-23 run:
+
+N_train_pairs = 712
+
+
+therefore one pair corresponds to approximately:
+
+0.001404
+
+
+accuracy.
+
+
+This should be used to interpret whether an apparent 0.02 accuracy change represents a biologically meaningful deterioration or a small number of pair-order changes.
+
+
+==================================================
+13. VALIDATION PAIR RESOLUTION
+==================================================
+
+For:
+
+N_validation_pairs = 43
+
+
+one validation pair corresponds to approximately:
+
+1 / 43
+=
+0.023256.
+
+
+Therefore validation accuracy changes occur in relatively large discrete steps.
+
+
+Phase 23B must explicitly account for this discreteness.
+
+
+==================================================
+14. CONTINUOUS RANKING LOSS
+==================================================
+
+For every epoch analyze:
+
+training feedback loss
+
+validation feedback loss
+
+
+Define:
+
+Delta L_train(e)
+=
+L_train(e)
+-
+L_train(K1)
+
+
+and:
+
+Delta L_val(e)
+=
+L_val(e)
+-
+L_val(K1)
+
+
+Negative values indicate improvement.
+
+
+==================================================
+15. VALIDATION MARGIN ACCURACY
+==================================================
+
+Analyze:
+
+validation_margin_accuracy
+
+
+relative to K1.
+
+
+Define:
+
+Delta M_val(e)
+=
+M_val(e)
+-
+M_val(K1)
+
+
+Positive values indicate that more validation pairs satisfy the desired ranking margin.
+
+
+==================================================
+16. RETENTION SIGNALS
+==================================================
+
+For every Phase-23 checkpoint for which retention data are available, analyze:
+
+severe_reference_drift_count
+
+mean_reference_prediction_drift
+
+maximum_reference_prediction_drift
+
+mean_reference_latent_drift
+
+maximum_reference_latent_drift
+
+raw Fisher-weighted drift
+
+
+These should be treated separately from ranking accuracy.
+
+
+==================================================
+17. SEVERE REFERENCE DRIFT REMAINS HARD
+==================================================
+
+The condition:
+
+severe_reference_drift_count = 0
+
+
+should remain a hard requirement for any future accepted adaptation.
+
+
+Do NOT relax this in Phase 23B.
+
+
+==================================================
+18. FISHER PRESERVATION REMAINS FIXED
+==================================================
+
+Phase 23B must NOT modify:
+
+F_E
+
+F_P
+
+theta-star.
+
+
+No new Fisher matrix is estimated.
+
+
+No new EWC anchor is introduced.
+
+
+==================================================
+19. TRAINING ACCURACY SHOULD NOT BE THE ONLY STABILITY METRIC
+==================================================
+
+Training pair accuracy measures one aspect of retained preference ordering.
+
+It does NOT directly measure:
+
+catastrophic forgetting
+
+parameter importance
+
+reference prediction preservation
+
+latent representation preservation.
+
+
+Therefore the future adaptation acceptance policy should combine multiple stability signals rather than treating one discrete metric as the sole gate.
+
+
+==================================================
+20. PROSPECTIVE MULTI-CRITERION ACCEPTANCE POLICY
+==================================================
+
+Phase 23B should define a prospective policy for a possible Phase 23C adaptation attempt.
+
+
+Recommended hard requirements:
+
+1. severe_reference_drift_count = 0
+
+2. all model parameters finite
+
+3. all gradients finite during training
+
+4. K0 unchanged
+
+5. K1 unchanged
+
+6. Fisher artifacts unchanged
+
+7. decoder unchanged
+
+8. Phase-22 Z_B2^(K1) unchanged
+
+
+==================================================
+21. TRAINING-RANKING NON-INFERIORITY
+==================================================
+
+Instead of a fixed:
+
+2%
+
+
+drop independent of sample size, define a prospective training-ranking tolerance using the observed pair population.
+
+
+Recommended prospective rule:
+
+maximum training accuracy drop:
+
+3 percentage points
+
+
+OR approximately:
+
+ceil(0.03 × N_train_pairs)
+
+
+additional discordant training pairs.
+
+
+For:
+
+712 pairs,
+
+
+3% corresponds to approximately:
+
+22 pairs.
+
+
+This threshold must be frozen BEFORE the next optimization run.
+
+
+==================================================
+22. WHY 3% IS PREFERABLE TO 2% HERE
+==================================================
+
+The value should not be chosen solely because Epoch 1 would pass.
+
+
+The rationale is:
+
+training accuracy is a discrete preference metric;
+
+the feedback cohort is substantially smaller than the original model-training corpus;
+
+EWC and the fixed-reference cohort already provide independent forgetting controls;
+
+the original 2% threshold was empirically too brittle for Cycle-2 feedback adaptation.
+
+
+Therefore:
+
+3% should be treated as a prospective non-inferiority margin for the next run, not retroactively applied to Phase 23.
+
+
+==================================================
+23. VALIDATION ACCURACY POLICY
+==================================================
+
+Because only 43 validation pairs exist, use:
+
+max(
+2 pairs,
+ceil(0.10 × N_validation_pairs)
+)
+
+
+as the prospective validation tolerance.
+
+
+For the present cohort:
+
+ceil(0.10 × 43)
+=
+5 pairs.
+
+
+Therefore:
+
+validation tolerance = 5 pairs.
+
+
+==================================================
+24. CONTINUOUS VALIDATION EVIDENCE
+==================================================
+
+An adapted checkpoint should also demonstrate at least one continuous improvement over K1:
+
+validation feedback loss decreases
+
+OR
+
+validation margin accuracy increases.
+
+
+This ensures that tolerance is not used simply to accept arbitrary degradation.
+
+
+==================================================
+25. REQUIRED ADAPTATION BENEFIT
+==================================================
+
+A future adapted checkpoint should therefore satisfy:
+
+Retention condition
+
+AND
+
+Training non-inferiority
+
+AND
+
+Validation evidence.
+
+
+In logical form:
+
+Accepted(e)
+=
+Retention(e)
+
+AND
+
+TrainNI(e)
+
+AND
+
+ValidationEvidence(e)
+
+
+==================================================
+26. RETENTION CONDITION
+==================================================
+
+Define:
+
+Retention(e)
+=
+[
+severe_reference_drift_count(e)
+=
+0
+]
+
+
+Additional quantities such as:
+
+mean prediction drift
+
+mean latent drift
+
+Fisher drift
+
+
+remain ranking and reporting diagnostics.
+
+
+==================================================
+27. TRAINING NON-INFERIORITY
+==================================================
+
+Define:
+
+TrainNI(e)
+=
+[
+A_train(e)
+>=
+A_train(K1)
+-
+0.03
+]
+
+
+The 3% margin must be recorded before Phase 23C begins.
+
+
+==================================================
+28. VALIDATION EVIDENCE
+==================================================
+
+Define:
+
+ValidationEvidence(e)
+
+
+as:
+
+validation accuracy within the frozen pair-count tolerance
+
+
+OR:
+
+validation feedback loss improved over K1
+
+
+OR:
+
+validation margin accuracy improved over K1.
+
+
+==================================================
+29. CHECKPOINT RANKING AFTER ELIGIBILITY
+==================================================
+
+Among eligible adapted checkpoints, recommend ranking by:
+
+1. zero severe drift
+
+2. highest validation pair accuracy
+
+3. highest validation margin accuracy
+
+4. lowest validation feedback loss
+
+5. smallest training accuracy drop
+
+6. lowest mean reference prediction drift
+
+7. lowest Fisher-weighted drift
+
+8. earlier epoch
+
+
+==================================================
+30. EPOCH 0 MUST REMAIN AVAILABLE
+==================================================
+
+Epoch 0:
+
+K1
+
+
+must remain an explicit selectable candidate.
+
+
+This means the continual-learning system can choose:
+
+update
+
+
+or:
+
+do not update.
+
+
+This is an important property of a robust self-evolving system.
+
+
+==================================================
+31. NO-FORCED-UPDATE PRINCIPLE
+==================================================
+
+The system should not require:
+
+K1 -> K2
+
+
+during every cycle.
+
+
+A legitimate closed-loop decision is:
+
+K1 -> K1
+
+
+if proposed adaptation does not satisfy the frozen acceptance criteria.
+
+
+==================================================
+32. PHASE 23B FRONTIER ANALYSIS
+==================================================
+
+Construct a checkpoint-level stability–plasticity table containing:
+
+epoch
+
+train accuracy
+
+train accuracy drop
+
+training loss
+
+validation accuracy
+
+validation accuracy drop
+
+validation margin accuracy
+
+validation loss
+
+raw EWC drift
+
+mean reference prediction drift
+
+max reference prediction drift
+
+mean reference latent drift
+
+max reference latent drift
+
+severe drift count
+
+primary eligibility
+
+prospective Phase-23C eligibility
+
+
+==================================================
+33. PARETO DIAGNOSTIC
+==================================================
+
+Optionally identify nondominated checkpoints with objectives:
+
+maximize validation accuracy
+
+maximize validation margin accuracy
+
+minimize validation feedback loss
+
+minimize training accuracy drop
+
+minimize reference prediction drift
+
+minimize Fisher-weighted drift.
+
+
+Pareto status is diagnostic only.
+
+
+It must NOT automatically select a checkpoint.
+
+
+==================================================
+34. STABILITY–PLASTICITY SCORE
+==================================================
+
+Do NOT create an arbitrary composite score unless its weighting is frozen before evaluation.
+
+
+For Phase 23B, retain individual metrics instead.
+
+
+This avoids hiding trade-offs inside a post-hoc scalar.
+
+
+==================================================
+35. EPOCH-1 SPECIAL ANALYSIS
+==================================================
+
+Epoch 1 deserves explicit diagnostic reporting because it was the closest adapted checkpoint to the original acceptance boundary.
+
+
+Report:
+
+training accuracy drop
+
+validation accuracy
+
+validation loss improvement
+
+validation margin improvement
+
+reference drift
+
+Fisher drift
+
+
+but do NOT retroactively accept Epoch 1.
+
+
+==================================================
+36. LATER-EPOCH ANALYSIS
+==================================================
+
+Examine whether later epochs demonstrate:
+
+continued feedback-loss improvement
+
+while causing:
+
+greater training-ranking degradation
+
+and/or:
+
+eventual severe reference drift.
+
+
+This provides evidence for an adaptation-overfitting trajectory.
+
+
+==================================================
+37. EXPECTED TRAJECTORY
+==================================================
+
+Based on the observed Phase-23 run, one possible pattern is:
+
+early epochs:
+modest adaptation
++
+good retention
+
+
+middle epochs:
+stronger feedback-loss improvement
++
+greater ranking displacement
+
+
+later epochs:
+higher stability risk.
+
+
+Phase 23B should quantify rather than assume this pattern.
+
+
+==================================================
+38. EARLY-STOPPING DIAGNOSTIC
+==================================================
+
+Evaluate whether:
+
+validation feedback loss
+
+
+reached its minimum before early stopping.
+
+
+Report:
+
+best validation-loss epoch
+
+best validation-accuracy epoch
+
+best validation-margin epoch
+
+lowest Fisher-drift adapted epoch.
+
+
+These may be different checkpoints.
+
+
+==================================================
+39. BEST-EPOCH DISAGREEMENT
+==================================================
+
+If these metrics select different epochs, record the disagreement explicitly.
+
+
+Do NOT collapse them retrospectively into a single “best epoch” without a frozen rule.
+
+
+==================================================
+40. MODEL-INTEGRITY CHECK
+==================================================
+
+Verify SHA-256 integrity for:
+
+K0 encoder
+
+K0 decoder
+
+K0 predictor
+
+K1 encoder
+
+K1 predictor
+
+F_E
+
+F_P
+
+theta-star
+
+B2
+
+Z_B2^(K1)
+
+
+before and after Phase 23B.
+
+
+All must remain unchanged.
+
+
+==================================================
+41. PHASE-23 CHECKPOINT FILES
+==================================================
+
+Do not treat:
+
+phase23_cycle2_adapted_encoder.pt
+
+or:
+
+phase23_cycle2_adapted_predictor.pt
+
+
+as accepted K2 checkpoints when:
+
+final_adaptation_accepted = False.
+
+
+Their metadata should be interpreted according to the retained-K1 result.
+
+
+==================================================
+42. ACCEPTED KNOWLEDGE STATE AFTER PHASE 23B
+==================================================
+
+Phase 23B itself does not change the model state.
+
+
+Therefore:
+
+K_accepted
+=
+K1
+
+
+throughout Phase 23B.
+
+
+==================================================
+43. PROPOSED PHASE 23C
+==================================================
+
+Only after Phase 23B is frozen may a new controlled adaptation attempt be performed.
+
+
+Recommended name:
+
+PHASE 23C — PROSPECTIVELY RECALIBRATED CYCLE-2 EWC CONTINUAL ADAPTATION
+
+
+Phase 23C would start again from:
+
+theta_E^(1)
+
+theta_P^(1)
+
+
+not from any rejected Phase-23 epoch.
+
+
+==================================================
+44. WHY PHASE 23C MUST RESTART FROM K1
+==================================================
+
+Rejected Phase-23 checkpoints are diagnostic artifacts.
+
+
+They are not accepted model states.
+
+
+Therefore Phase 23C must initialize from:
+
+K1
+
+
+to preserve lineage.
+
+
+==================================================
+45. PHASE-23C PRIMARY POLICY TO FREEZE
+==================================================
+
+Before Phase 23C begins, freeze:
+
+training non-inferiority margin = 0.03
+
+validation pair tolerance =
+max(
+2,
+ceil(
+0.10 × N_validation_pairs
+)
+)
+
+severe reference drift count = 0
+
+lambda_EWC =
+accepted Cycle-1 lambda
+
+learning rate =
+1e-4
+
+maximum epochs =
+20
+
+minimum rank separation =
+5
+
+ranking margin =
+0.05
+
+
+==================================================
+46. DO NOT TUNE LAMBDA USING PHASE-23 RESULTS
+==================================================
+
+Phase 23B should NOT use the failed Phase-23 trajectory to select a new favorable EWC coefficient.
+
+
+Retain:
+
+lambda_EWC = 10
+
+
+because it is inherited from the accepted Cycle-1 policy.
+
+
+Changing both:
+
+guardrails
+
+and:
+
+lambda
+
+
+simultaneously would make interpretation difficult.
+
+
+==================================================
+47. DO NOT CHANGE THE FEEDBACK LOSS
+==================================================
+
+Keep the Cycle-2 preference objective unchanged:
+
+L_feedback
+
+
+with:
+
+0.30 QED
+
+0.20 SAUtility
+
+0.50 biological relevance
+
+
+and frozen Phase-21 top-five targets.
+
+
+Phase 23B diagnoses acceptance criteria rather than redesigning the learning objective.
+
+
+==================================================
+48. DO NOT ADD LATENT REGULARIZATION
+==================================================
+
+Do NOT add:
+
+beta L_latent
+
+
+in Phase 23C solely because Phase 23 was rejected.
+
+
+Doing so would change two methodological factors simultaneously:
+
+acceptance policy
+
+and:
+
+optimization objective.
+
+
+Maintain one controlled change at a time.
+
+
+==================================================
+49. OUTPUT FILES
+==================================================
+
+Recommended Phase-23B outputs:
+
+phase23B_diagnostic_config.json
+
+phase23B_epoch_stability_plasticity_table.csv
+
+phase23B_training_accuracy_pair_resolution.csv
+
+phase23B_validation_pair_resolution.csv
+
+phase23B_metric_best_epochs.csv
+
+phase23B_epoch1_diagnostic.csv
+
+phase23B_pareto_diagnostic.csv
+
+phase23B_prospective_acceptance_policy.json
+
+phase23B_checkpoint_integrity.csv
+
+phase23B_diagnostic_qc_summary.csv
+
+phase23B_diagnostic_qc_summary.json
+
+
+==================================================
+50. PHASE-23B QC REQUIREMENTS
+==================================================
+
+Require:
+
+1. Phase 23 completed successfully.
+
+2. final_adaptation_accepted = False.
+
+3. selected_epoch = 0.
+
+4. K1 was retained.
+
+5. Training history available.
+
+6. Checkpoint candidate audit available.
+
+7. Epoch 0 available.
+
+8. All trained epochs represented.
+
+9. Training-pair count verified.
+
+10. Validation-pair count verified.
+
+11. Accuracy resolution calculated.
+
+12. Training accuracy drops calculated.
+
+13. Validation accuracy drops calculated.
+
+14. Training-loss changes calculated.
+
+15. Validation-loss changes calculated.
+
+16. Validation-margin changes calculated.
+
+17. Reference prediction drift incorporated.
+
+18. Reference latent drift incorporated.
+
+19. Fisher drift incorporated.
+
+20. Severe-drift status incorporated.
+
+21. Prospective training margin frozen.
+
+22. Prospective validation pair tolerance frozen.
+
+23. No model update performed.
+
+24. No optimizer created.
+
+25. No backward pass performed.
+
+26. No Fisher recalculation performed.
+
+27. K0 hashes unchanged.
+
+28. K1 hashes unchanged.
+
+29. Fisher hashes unchanged.
+
+30. B2 hash unchanged.
+
+31. Phase-22 latent snapshot hash unchanged.
+
+
+==================================================
+51. PRIMARY PHASE-23B CONCLUSION
+==================================================
+
+Phase 23B should determine whether the Phase-23 rejection resulted from:
+
+A)
+
+genuine destabilization / forgetting
+
+
+or:
+
+B)
+
+a mismatch between discrete ranking thresholds and otherwise controlled adaptation behavior.
+
+
+The existing Phase-23 output suggests the latter may deserve investigation because early adapted epochs showed:
+
+improved validation feedback loss
+
+improved validation margin accuracy
+
+zero severe reference drift
+
+
+while narrowly missing the training-ranking threshold.
+
+
+However, this remains a diagnostic conclusion until Phase 23B is completed.
+
+
+==================================================
+52. SCIENTIFIC CLAIM
+==================================================
+
+Appropriate statement:
+
+“Cycle-2 adaptation reduced the continuous feedback-ranking objective but failed the predefined training-ranking non-inferiority criterion. Consequently, the K1 state was retained and a separate stability–plasticity diagnostic was conducted before defining any revised adaptation policy.”
+
+
+==================================================
+53. CLAIMS TO AVOID
+==================================================
+
+Do not state:
+
+“Epoch 1 was actually successful.”
+
+
+Do not state:
+
+“The original threshold was wrong.”
+
+
+Do not state:
+
+“EWC failed.”
+
+
+Do not state:
+
+“The model catastrophically forgot.”
+
+
+Do not state:
+
+“Cycle-2 learning improved the model.”
+
+
+None of these conclusions is justified solely by the Phase-23 rejection.
+
+
+==================================================
+54. FINAL PHASE-23B DATA FLOW
+==================================================
+
+PHASE 23 RESULT
+
+K1 retained
+
+        ↓
+
+LOAD
+
+training history
+
+checkpoint audit
+
+feedback pair counts
+
+retention diagnostics
+
+Fisher drift diagnostics
+
+        ↓
+
+CALCULATE
+
+training accuracy change
+
+validation accuracy change
+
+pair-count resolution
+
+loss improvement
+
+margin improvement
+
+retention drift
+
+        ↓
+
+STABILITY–PLASTICITY ANALYSIS
+
+        ↓
+
+NO MODEL UPDATE
+
+        ↓
+
+FREEZE PROSPECTIVE ACCEPTANCE POLICY
+
+Training NI margin = 3%
+
+Validation tolerance =
+max(
+2 pairs,
+10% validation pairs
+)
+
+Severe reference drift = 0
+
+Continuous validation evidence required
+
+        ↓
+
+K1 REMAINS ACCEPTED
+
+        ↓
+
+READY FOR OPTIONAL PHASE 23C
+
+
+==================================================
+55. PHASE 23B FINAL STATUS
+==================================================
+
+If all diagnostics and integrity checks pass:
+
+PHASE 23B — FINALIZED / PASS
+
+
+Accepted model before Phase 23B:
+
+K1
+
+
+Accepted model after Phase 23B:
+
+K1
+
+
+Parameter update:
+
+NONE
+
+
+Main output:
+
+prospectively frozen Phase-23C adaptation-acceptance policy.
+
+
+==================================================
+56. NEXT STEP
+==================================================
+
+After Phase 23B is finalized:
+
+PHASE 23C — PROSPECTIVELY RECALIBRATED CYCLE-2 EWC CONTINUAL ADAPTATION
+
+
+Only Phase 23C may attempt:
+
+K1
+→
+K2
+
+
+again under the newly frozen acceptance policy.
+------------------------------
+==============
 ---
 
 # Phase 24 — Knowledge Consolidation After Each Cycle
